@@ -9,5 +9,5 @@ class UserResponse(BaseModel):
     email: str
     rol: str
 
-    class Config:
-        from_attributes = True
+class Config:
+    orm_mode = True

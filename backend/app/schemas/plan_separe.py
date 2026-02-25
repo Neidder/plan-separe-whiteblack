@@ -13,5 +13,5 @@ class PlanSepareResponse(PlanSepareBase):
     id: int
     fecha_inicio: date
 
-    class Config:
-        from_attributes = True
+class Config:
+    orm_mode = True
