@@ -1,35 +1,17 @@
-from fastapi import APIRouter, HTTPException
-from schemas.plan_separe import PlanSepareResponse, PlanSepareCreate
+from fastapi import APIRouter, Depends
+from app.dependencies import auth_required
+from app.database import SessionLocal
+from app.models.plan_separe import PlanSepare
 
-router = APIRouter(
-    prefix="/plan-separe",
-    tags=["plan-separe"]
-)
 
-planes_fake_db = []
+router = APIRouter(prefix="/plan_separe", tags=["Plan Separe"])
 
 @router.get("/")
-def listar_planes():
+def ver_planes(user=Depends(auth_required)):
     return {
-        "message": "Ruta de Plan Separe funcionando correctamente"
+        "message": "Planes del usuario",
+        "usuario": user["email"]
     }
-
-@router.post("/", response_model=PlanSepareResponse)
-def create_plan_separe(plan: PlanSepareCreate):
-
-    anticipo_minimo = plan.precio_total * 0.2
-    if plan.anticipo < anticipo_minimo:
-        raise HTTPException(status_code=400, detail=f"El anticipo debe ser al menos el 20% del precio total ({anticipo_minimo})")
-    
-    saldo = plan.precio_total - plan.anticipo
-
-    nuevo_plan = PlanSepareResponse(
-        id=len(planes_fake_db) + 1,
-        product_id=plan.product_id,
-        precio_total=plan.precio_total,
-        anticipo=plan.anticipo,
-        saldo_pendiente=saldo,
-        estado='activo'
-    )
-    planes_fake_db.append(nuevo_plan)
-    return nuevo_plan
+@router.post("/")
+def crear_plan(producto_id: int, total: float):
+    return {"mensaje": "Plan separe creado"}

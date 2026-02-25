@@ -1,18 +1,17 @@
-from  pydantic import BaseModel
-from typing import Literal
+from pydantic import BaseModel
+from datetime import date
 
-class PlanSepare(BaseModel):
-   product_id: int
-   precio_total: float
-   anticipo: float
+class PlanSepareBase(BaseModel):
+    producto_id: int
+    usuario_id: int
+    total: float
 
-class PlanSepareCreate(PlanSepare):
-   pass
+class PlanSepareCreate(PlanSepareBase):
+    pass
 
-class PlanSepareResponse(PlanSepare):
-   id: int
-   saldo_pendiente: float
-   estado: Literal['pendiente', 'pagado', 'cancelado']
+class PlanSepareResponse(PlanSepareBase):
+    id: int
+    fecha_inicio: date
 
-   class Config:
-      orm_mode = True
+    class Config:
+        from_attributes = True

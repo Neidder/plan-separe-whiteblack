@@ -1,12 +1,15 @@
 from fastapi import FastAPI
-from routes import productos , plan_separe
+from app.database import Base, engine
+from app.routes import productos
+from backend.app.routes import auth, plan_separe
 
-app = FastAPI(title="API de Gestión de Productos y Planes Separe", version="1.0")
+Base.metadata.create_all(bind=engine)
 
+app = FastAPI()
 app.include_router(productos.router)
+app.include_router(auth.router)
 app.include_router(plan_separe.router)
 
 @app.get("/")
-def read_root():
-    return {"message": "plan-separe-api is running!"}
-
+def root():
+    return {"status": "API funcionando"}

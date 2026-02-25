@@ -1,27 +1,26 @@
-from fastapi import APIRouter
-from schemas.productos import ProductoCreate, ProductoResponse
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database import SessionLocal
+from app.models.producto import Producto
+from app.schemas.productos import ProductoCreate, ProductoResponse
 
-router = APIRouter(
-    prefix="/productos",
-    tags=["productos"]
-)
+router = APIRouter(prefix="/productos", tags=["Productos"])
 
-# Simulación de una base de datos 
-productos_fake_db = [
-  {"id": 1, "nombre": "Producto A", "precio": 10.000, "stock": 100},
-    {"id": 2, "nombre": "Producto B", "precio": 20.000, "stock": 50},
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
- ]
+@router.post("/", response_model=ProductoResponse)
+def crear_producto(data: ProductoCreate, db: Session = Depends(get_db)):
+    producto = Producto(**data.dict())
+    db.add(producto)
+    db.commit()
+    db.refresh(producto)
+    return producto
 
 @router.get("/", response_model=list[ProductoResponse])
-def listar_productos():
-    return productos_fake_db
-
-router.post("/", response_model=ProductoResponse)
-def crear_producto(producto: ProductoCreate):
-    nuevo_producto = {
-        "id": len(productos_fake_db) + 1,
-        **producto.dict()
-    }
-    productos_fake_db.append(nuevo_producto)
-    return nuevo_producto
+def listar_productos(db: Session = Depends(get_db)):
+    return db.query(Producto).filter(Producto.activo == True).all()
