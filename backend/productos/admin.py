@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Producto, Categoria
+from .models import Productos, Kardex
 
-admin.site.register(Producto)
-admin.site.register(Categoria)
+admin.site.register(Productos)
+admin.site.register(Kardex)

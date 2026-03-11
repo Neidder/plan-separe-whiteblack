@@ -1,35 +1,32 @@
 from django.db import models
 
-class Categoria(models.Model):
 
-    nombre = models.CharField(max_length=100)
-
-    def __str__(self):
-        return self.nombre
-
-
-class Producto(models.Model):
-
-    codigo = models.CharField(max_length=50, unique=True)
+class Productos(models.Model):
+    id_producto = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=150)
-
-    descripcion = models.TextField(blank=True)
-
-    categoria = models.ForeignKey(
-        Categoria,
-        on_delete=models.CASCADE
-    )
-
-    talla = models.CharField(max_length=10)
-    color = models.CharField(max_length=30)
-
-    precio_costo = models.DecimalField(max_digits=10, decimal_places=2)
+    descripcion = models.TextField(blank=True, null=True)
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
-
     stock = models.IntegerField()
-    stock_minimo = models.IntegerField(default=5)
+    fecha_creacion = models.DateTimeField(blank=True, null=True)
+    costo_promedio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
 
-    fecha_registro = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        managed = False
+        db_table = 'productos'
 
-    def __str__(self):
-        return self.nombre
+
+class Kardex(models.Model):
+    id_kardex = models.AutoField(primary_key=True)
+    id_producto = models.ForeignKey(Productos, models.DO_NOTHING, db_column='id_producto')
+    tipo_movimiento = models.CharField(max_length=7)
+    cantidad = models.IntegerField()
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    stock_anterior = models.IntegerField()
+    stock_nuevo = models.IntegerField()
+    fecha_movimiento = models.DateTimeField(blank=True, null=True)
+    referencia = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'kardex'

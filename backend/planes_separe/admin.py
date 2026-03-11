@@ -1,4 +1,6 @@
 from django.contrib import admin
-from .models import PlanSepare
+from .models import PlanesSepare, Entregas
 
-admin.site.register(PlanSepare)
+
+admin.site.register(PlanesSepare)
+admin.site.register(Entregas)

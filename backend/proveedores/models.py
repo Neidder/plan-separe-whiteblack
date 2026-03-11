@@ -1,13 +1,16 @@
 # Create your models here.
 from django.db import models
 
-class Proveedor(models.Model):
 
-    razon_social = models.CharField(max_length=150)
-    ruc = models.CharField(max_length=20, unique=True)
-    telefono = models.CharField(max_length=20)
-    correo = models.EmailField()
-    direccion = models.CharField(max_length=200)
+class Proveedores(models.Model):
+    id_proveedor = models.AutoField(primary_key=True)
+    nombre_empresa = models.CharField(max_length=150)
+    contacto = models.CharField(max_length=100, blank=True, null=True)
+    telefono = models.CharField(max_length=20, blank=True, null=True)
+    correo = models.CharField(max_length=150, blank=True, null=True)
+    direccion = models.CharField(max_length=200, blank=True, null=True)
+    fecha_registro = models.DateTimeField(blank=True, null=True)
 
-    def __str__(self):
-        return self.razon_social
+    class Meta:
+        managed = False
+        db_table = 'proveedores'
