@@ -28,13 +28,3 @@ urlpatterns = [
     path('api/pagos/', include('pagos.urls')),
     path('api/planes-separe/', include('planes_separe.urls')),
 ]
-
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
-
-urlpatterns = [
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-]
