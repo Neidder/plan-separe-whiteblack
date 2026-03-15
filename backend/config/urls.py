@@ -19,11 +19,22 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('clientes.urls')),
-    path('api/', include('proveedores.urls')),
-    path('api/', include('usuarios.urls')),
-    path('api/', include('productos.urls')),
-    path('api/', include('compras.urls')),
-    path('api/', include('pagos.urls')),
-    path('api/', include('planes_separe.urls')),
+
+    path('api/clientes/', include('clientes.urls')),
+    path('api/proveedores/', include('proveedores.urls')),
+    path('api/usuarios/', include('usuarios.urls')),
+    path('api/productos/', include('productos.urls')),
+    path('api/compras/', include('compras.urls')),
+    path('api/pagos/', include('pagos.urls')),
+    path('api/planes-separe/', include('planes_separe.urls')),
+]
+
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+urlpatterns = [
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
