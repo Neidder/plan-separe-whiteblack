@@ -82,11 +82,21 @@ class PlanSepareViewSet(viewsets.ModelViewSet):
                 {'error': 'No se puede eliminar un plan activo'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        instance.delete()
-        return Response(
-            {'mensaje': 'Plan eliminado correctamente'},
-            status=status.HTTP_200_OK
-        )
+        try:
+            # Primero elimina los pagos asociados
+            from pagos.models import Pagos
+            Pagos.objects.filter(id_plan_separe=instance).delete()
+            # Luego elimina el plan
+            instance.delete()
+            return Response(
+                {'mensaje': 'Plan eliminado correctamente'},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'No se pudo eliminar el plan: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=False, methods=['get'], url_path='cliente/(?P<id_cliente>[^/.]+)')
     def por_cliente(self, request, id_cliente=None):
