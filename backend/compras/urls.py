@@ -3,5 +3,6 @@ from .views import CompraViewSet, DetalleCompraViewSet
 
 router = DefaultRouter()
 router.register(r'compras', CompraViewSet)
-router.register(r'detalle-compra', DetalleCompraViewSet)
+router.register(r'detalles', DetalleCompraViewSet)
+
 urlpatterns = router.urls

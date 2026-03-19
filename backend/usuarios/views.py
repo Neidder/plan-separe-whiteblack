@@ -6,13 +6,16 @@ from .models import Usuarios, Roles
 from .serializers import UsuarioSerializer, RolSerializer, LoginSerializer
 import hashlib
 
+
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Roles.objects.all()
     serializer_class = RolSerializer
 
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuarios.objects.all()
     serializer_class = UsuarioSerializer
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -23,6 +26,7 @@ def login(request):
         contrasena = hashlib.sha256(
             serializer.validated_data['contrasena'].encode()
         ).hexdigest()
+
         try:
             usuario = Usuarios.objects.get(correo=correo, contrasena=contrasena)
             return Response({
