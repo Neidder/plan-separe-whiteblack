@@ -28,10 +28,15 @@ class PagoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Verificar que el plan esté activo
-        if plan.estado != 'activo':
+            # Verificar que el plan esté activo
+        if plan.estado == 'pagado':
             return Response(
-                {'error': f'Este plan está {plan.estado}, no se pueden registrar pagos'},
+                {'error': 'Este plan ya está pagado, no se pueden registrar más pagos'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if plan.estado == 'cancelado':
+            return Response(
+                {'error': 'Este plan está cancelado, no se pueden registrar pagos'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

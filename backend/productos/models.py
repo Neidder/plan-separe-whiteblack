@@ -9,7 +9,8 @@ class Productos(models.Model):
     stock = models.IntegerField()
     fecha_creacion = models.DateTimeField(blank=True, null=True)
     costo_promedio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-
+    activo = models.BooleanField(default=True)
+    
     class Meta:
         managed = False
         db_table = 'productos'

@@ -10,6 +10,7 @@ class Clientes(models.Model):
     correo = models.CharField(max_length=150, blank=True, null=True)
     direccion = models.CharField(max_length=200, blank=True, null=True)
     fecha_registro = models.DateTimeField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
 
     class Meta:
         managed = False

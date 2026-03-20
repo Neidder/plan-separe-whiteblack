@@ -5,9 +5,10 @@ from django.utils import timezone
 from .models import Clientes
 from .serializers import ClienteSerializer
 
-
+ 
 class ClienteViewSet(viewsets.ModelViewSet):
-    queryset = Clientes.objects.all().order_by('nombre')
+    # Solo muestra clientes activos
+    queryset = Clientes.objects.filter(activo=True).order_by('nombre')
     serializer_class = ClienteSerializer
 
     def create(self, request, *args, **kwargs):
@@ -33,11 +34,31 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.delete()
+        # En lugar de eliminar, desactiva
+        instance.activo = False
+        instance.save()
         return Response(
-            {'mensaje': 'Cliente eliminado correctamente'},
+            {'mensaje': f'Cliente "{instance.nombre}" desactivado correctamente'},
             status=status.HTTP_200_OK
         )
+
+    @action(detail=False, methods=['get'])
+    def inactivos(self, request):
+        # Endpoint para ver clientes inactivos
+        clientes = Clientes.objects.filter(activo=False).order_by('nombre')
+        serializer = self.get_serializer(clientes, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['patch'])
+    def reactivar(self, request, pk=None):
+        # Endpoint para reactivar un cliente
+        try:
+            cliente = Clientes.objects.get(pk=pk)
+            cliente.activo = True
+            cliente.save()
+            return Response({'mensaje': f'Cliente "{cliente.nombre}" reactivado correctamente'})
+        except Clientes.DoesNotExist:
+            return Response({'error': 'Cliente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['get'], url_path='buscar')
     def buscar(self, request):
@@ -47,11 +68,11 @@ class ClienteViewSet(viewsets.ModelViewSet):
                 {'error': 'Ingresa un término de búsqueda'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        clientes = Clientes.objects.filter(
+        clientes = Clientes.objects.filter(activo=True).filter(
             nombre__icontains=query
-        ) | Clientes.objects.filter(
+        ) | Clientes.objects.filter(activo=True).filter(
             apellido__icontains=query
-        ) | Clientes.objects.filter(
+        ) | Clientes.objects.filter(activo=True).filter(
             documento__icontains=query
         )
         serializer = self.get_serializer(clientes, many=True)

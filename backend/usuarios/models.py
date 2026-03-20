@@ -25,6 +25,7 @@ class Usuarios(models.Model):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     id_rol = models.ForeignKey(Roles, models.DO_NOTHING, db_column='id_rol', blank=True, null=True)
     fecha_creacion = models.DateTimeField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
 
     class Meta:
         managed = False

@@ -79,9 +79,15 @@ class PlanSepareViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         if instance.estado == 'activo':
             return Response(
-                {'error': 'No se puede eliminar un plan activo'},
+                {'error': 'No se puede cancelar un plan activo con pagos pendientes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        instance.estado = 'cancelado'
+        instance.save()
+        return Response(
+            {'mensaje': f'Plan #{instance.id_plan_separe} cancelado correctamente'},
+            status=status.HTTP_200_OK
+        )
         try:
             # Primero elimina los pagos asociados
             from pagos.models import Pagos

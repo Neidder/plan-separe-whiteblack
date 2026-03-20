@@ -103,21 +103,10 @@ class CompraViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
-            instance = self.get_object()
-            try:
-                # Primero elimina los detalles
-                DetalleCompra.objects.filter(id_compra=instance).delete()
-                # Luego elimina la compra
-                instance.delete()
-                return Response(
-                    {'mensaje': 'Compra eliminada correctamente'},
-                    status=status.HTTP_200_OK
-                )
-            except Exception as e:
-                return Response(
-                    {'error': f'No se pudo eliminar la compra: {str(e)}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        return Response(
+            {'error': 'Las compras no se pueden eliminar por ser registros contables'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     @action(detail=True, methods=['get'])
     def detalles(self, request, pk=None):
