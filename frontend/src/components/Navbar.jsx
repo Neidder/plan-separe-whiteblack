@@ -11,7 +11,7 @@ const Navbar = () => {
 
     return (
         <nav style={styles.nav}>
-            <div style={styles.logo}>Plan Separe</div>
+            <div style={styles.logo}>whiteblack</div>
             <div style={styles.links}>
                 <Link to="/dashboard" style={styles.link}>Dashboard</Link>
                 <Link to="/productos" style={styles.link}>Productos</Link>
