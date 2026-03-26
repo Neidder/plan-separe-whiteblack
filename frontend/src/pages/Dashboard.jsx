@@ -46,6 +46,8 @@ const styles = {
         marginLeft: '250px',
         flex: 1,
         padding: '30px',
+        backgroundColor: '#f0f4f0', // ✅ AGREGÁ esto
+        minHeight: '100vh',          // ✅ AGREGÁ esto
     },
     header: {
         marginBottom: '30px',

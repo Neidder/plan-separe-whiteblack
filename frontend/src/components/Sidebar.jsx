@@ -62,6 +62,7 @@ const Sidebar = () => {
             <button onClick={handleLogout} style={styles.logout}>
                 🚪 Cerrar Sesión
             </button>
+            
         </div>
     );
 };
@@ -74,7 +75,7 @@ const styles = {
         borderRight: '1px solid #e0ede6',
         display: 'flex',
         flexDirection: 'column',
-        padding: '20px 0',
+        padding: '20px 0 100px 0',
         position: 'fixed',
         top: 0,
         left: 0,
@@ -152,7 +153,8 @@ const styles = {
         fontSize: '18px',
     },
     logout: {
-        margin: '10px 15px 0 15px',
+        marginTop: 'auto',
+        margin: '10px 15px',
         padding: '12px',
         backgroundColor: '#fff',
         color: '#e53935',
@@ -174,6 +176,7 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
     fontWeight: 'bold',
+    paddingBottom: '30px',
 }
 };
 
