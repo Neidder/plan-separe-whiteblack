@@ -10,10 +10,26 @@ class Productos(models.Model):
     fecha_creacion = models.DateTimeField(blank=True, null=True)
     costo_promedio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     activo = models.BooleanField(default=True)
-    
+
     class Meta:
         managed = False
         db_table = 'productos'
+
+
+class ProductoTalla(models.Model):
+    id_talla = models.AutoField(primary_key=True)
+    id_producto = models.ForeignKey(
+        Productos,
+        models.CASCADE,
+        db_column='id_producto',
+        related_name='tallas'
+    )
+    talla = models.CharField(max_length=10)
+    cantidad = models.IntegerField(default=0)
+
+    class Meta:
+        managed = False
+        db_table = 'producto_tallas'
 
 
 class Kardex(models.Model):

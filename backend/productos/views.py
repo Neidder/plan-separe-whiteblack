@@ -2,8 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Productos, Kardex
-from .serializers import ProductoSerializer, KardexSerializer
+from .models import Productos, ProductoTalla, Kardex
+from .serializers import ProductoSerializer, ProductoTallaSerializer, KardexSerializer
 
 
 class ProductoViewSet(viewsets.ModelViewSet):
@@ -44,23 +44,46 @@ class ProductoViewSet(viewsets.ModelViewSet):
             )
 
     def create(self, request, *args, **kwargs):
+        # Separamos las tallas del resto de datos
+        tallas_data = request.data.get('tallas', [])
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             self.perform_create(serializer)
+            producto = serializer.instance
+            # Guardamos cada talla
+            for t in tallas_data:
+                if t.get('talla') and t.get('cantidad') is not None:
+                    ProductoTalla.objects.create(
+                        id_producto=producto,
+                        talla=t['talla'].upper(),
+                        cantidad=int(t['cantidad'])
+                    )
             return Response({
-                'mensaje': 'Producto creado y kardex registrado correctamente',
-                'data': serializer.data
+                'mensaje': 'Producto creado correctamente',
+                'data': self.get_serializer(producto).data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        tallas_data = request.data.get('tallas', [])
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid():
             self.perform_update(serializer)
+            producto = serializer.instance
+            # Reemplazamos todas las tallas
+            if tallas_data:
+                ProductoTalla.objects.filter(id_producto=producto).delete()
+                for t in tallas_data:
+                    if t.get('talla') and t.get('cantidad') is not None:
+                        ProductoTalla.objects.create(
+                            id_producto=producto,
+                            talla=t['talla'].upper(),
+                            cantidad=int(t['cantidad'])
+                        )
             return Response({
                 'mensaje': 'Producto actualizado correctamente',
-                'data': serializer.data
+                'data': self.get_serializer(producto).data
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
