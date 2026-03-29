@@ -74,7 +74,7 @@ class PlanSepareViewSet(viewsets.ModelViewSet):
         # Crear el plan — id_producto queda en None porque ahora es múltiple
         plan = PlanesSepare.objects.create(
             id_cliente=cliente,
-            #id_producto=None,
+            id_producto=None,
             id_vendedor=vendedor,
             valor_total=valor_total,
             anticipo=anticipo,
