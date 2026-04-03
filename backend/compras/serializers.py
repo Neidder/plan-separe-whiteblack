@@ -22,13 +22,19 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
 class CompraSerializer(serializers.ModelSerializer):
     detalles = DetalleCompraSerializer(many=True, read_only=True,
                                         source='detallecompra_set')
-
     class Meta:
         model = Compras
         fields = '__all__'
 
 
+class CrearDetalleCompraSerializer(serializers.Serializer):
+    id_producto = serializers.IntegerField()
+    talla = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    cantidad = serializers.IntegerField(min_value=1)
+    precio_unitario = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class CrearCompraSerializer(serializers.Serializer):
     id_proveedor = serializers.IntegerField()
     id_usuario = serializers.IntegerField()
-    detalles = DetalleCompraSerializer(many=True)
+    detalles = CrearDetalleCompraSerializer(many=True)

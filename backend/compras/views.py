@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.db import transaction
 from .models import Compras, DetalleCompra
 from .serializers import CompraSerializer, DetalleCompraSerializer, CrearCompraSerializer
-from productos.models import Productos, Kardex
+from productos.models import Productos, Kardex, ProductoTalla
 from proveedores.models import Proveedores
 from usuarios.models import Usuarios
 
@@ -33,16 +33,12 @@ class CompraViewSet(viewsets.ModelViewSet):
             proveedor = Proveedores.objects.get(pk=data['id_proveedor'])
             usuario = Usuarios.objects.get(pk=data['id_usuario'])
         except Proveedores.DoesNotExist:
-            return Response({'error': 'Proveedor no encontrado'},
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Proveedor no encontrado'}, status=status.HTTP_404_NOT_FOUND)
         except Usuarios.DoesNotExist:
-            return Response({'error': 'Usuario no encontrado'},
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Calcular total
         total = sum(d['cantidad'] * d['precio_unitario'] for d in detalles)
 
-        # Crear la compra
         compra = Compras.objects.create(
             id_proveedor=proveedor,
             id_usuario=usuario,
@@ -50,19 +46,16 @@ class CompraViewSet(viewsets.ModelViewSet):
             total=total
         )
 
-        # Crear detalles y actualizar stock
         for detalle in detalles:
             try:
-                producto = Productos.objects.get(pk=detalle['id_producto'].pk)
+                producto = Productos.objects.get(pk=detalle['id_producto'])
             except Productos.DoesNotExist:
-                return Response(
-                    {'error': f'Producto no encontrado'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+                return Response({'error': 'Producto no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
             cantidad = detalle['cantidad']
             precio_unitario = detalle['precio_unitario']
             subtotal = cantidad * precio_unitario
+            talla = detalle.get('talla', '').upper()
 
             DetalleCompra.objects.create(
                 id_compra=compra,
@@ -72,13 +65,21 @@ class CompraViewSet(viewsets.ModelViewSet):
                 subtotal=subtotal
             )
 
-            # Actualizar stock del producto
-            stock_anterior = producto.stock
-            producto.stock += cantidad
+            # Sumar stock por talla si se especificó
+            if talla:
+                talla_obj, creada = ProductoTalla.objects.get_or_create(
+                    id_producto=producto,
+                    talla=talla,
+                    defaults={'cantidad': 0}
+                )
+                talla_obj.cantidad += cantidad
+                talla_obj.save()
 
-            # Recalcular costo promedio
+            # Actualizar stock general y costo promedio
+            stock_anterior = producto.stock
             costo_actual = (producto.costo_promedio or 0) * stock_anterior
             costo_nuevo = precio_unitario * cantidad
+            producto.stock += cantidad
             producto.costo_promedio = (costo_actual + costo_nuevo) / producto.stock
             producto.save()
 
