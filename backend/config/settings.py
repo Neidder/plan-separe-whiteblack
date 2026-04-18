@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'compras',
     'planes_separe',
     'pagos',
+    'ventas',
 ]
 
 MIDDLEWARE = [
