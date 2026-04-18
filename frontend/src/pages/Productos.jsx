@@ -5,7 +5,29 @@ import {
     actualizarProducto, eliminarProducto
 } from '../api/productos';
 
-const TALLAS_OPCIONES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+// ── Tipos de talla disponibles ──
+const TIPOS_TALLA = {
+    ropa: {
+        label: '👕 Ropa',
+        descripcion: 'XS, S, M, L, XL, XXL',
+        tallas: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+    },
+    numerico_adulto: {
+        label: '👖 Pantalón adulto',
+        descripcion: '28 al 40',
+        tallas: ['28', '30', '32', '34', '36', '38', '40'],
+    },
+    jeans_dama: {
+        label: '👗 Jeans dama / Mochos',
+        descripcion: '1, 3, 5, 7, 9, 10, 12, 14',
+        tallas: ['1', '3', '5', '7', '9', '10', '12', '14'],
+    },
+    unica: {
+        label: '🏷️ Talla única',
+        descripcion: 'Un solo tamaño',
+        tallas: ['ÚNICA'],
+    },
+};
 
 const formInicial = {
     nombre: '',
@@ -15,8 +37,19 @@ const formInicial = {
     stock: '0',
 };
 
-const tallasIniciales = () =>
-    TALLAS_OPCIONES.map(t => ({ talla: t, cantidad: 0, activa: false }));
+const tallasIniciales = (tipo = 'ropa') =>
+    TIPOS_TALLA[tipo].tallas.map(t => ({ talla: t, cantidad: 0, activa: false }));
+
+// Detecta qué tipo de talla tiene un producto existente
+const detectarTipo = (tallasProducto) => {
+    if (!tallasProducto || tallasProducto.length === 0) return 'ropa';
+    const primera = tallasProducto[0].talla;
+    if (primera === 'ÚNICA') return 'unica';
+    if (['XS', 'S', 'M', 'L', 'XL', 'XXL'].includes(primera)) return 'ropa';
+    if (['28', '30', '32', '34', '36', '38', '40'].includes(primera)) return 'numerico_adulto';
+    if (['1', '3', '5', '7', '9', '10', '12', '14'].includes(primera)) return 'jeans_dama';
+    return 'ropa';
+};
 
 const Productos = () => {
     const [productos, setProductos] = useState([]);
@@ -24,7 +57,8 @@ const Productos = () => {
     const [productoEditando, setProductoEditando] = useState(null);
     const [error, setError] = useState('');
     const [form, setForm] = useState(formInicial);
-    const [tallas, setTallas] = useState(tallasIniciales());
+    const [tallas, setTallas] = useState(tallasIniciales('ropa'));
+    const [tipoTalla, setTipoTalla] = useState('ropa');
     const [expandido, setExpandido] = useState(null);
 
     useEffect(() => { cargarProductos(); }, []);
@@ -42,7 +76,12 @@ const Productos = () => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    // Activa/desactiva una talla y maneja su cantidad
+    const handleTipoTallaChange = (tipo) => {
+        setTipoTalla(tipo);
+        setTallas(tallasIniciales(tipo));
+        setForm(prev => ({ ...prev, stock: '0' }));
+    };
+
     const handleTallaToggle = (index) => {
         const nuevas = [...tallas];
         nuevas[index].activa = !nuevas[index].activa;
@@ -58,7 +97,6 @@ const Productos = () => {
         recalcularStock(nuevas);
     };
 
-    // El stock total es la suma de todas las tallas activas
     const recalcularStock = (tallasActuales) => {
         const total = tallasActuales
             .filter(t => t.activa)
@@ -69,7 +107,8 @@ const Productos = () => {
     const handleNuevo = () => {
         setProductoEditando(null);
         setForm(formInicial);
-        setTallas(tallasIniciales());
+        setTipoTalla('ropa');
+        setTallas(tallasIniciales('ropa'));
         setMostrarForm(true);
         setError('');
     };
@@ -83,8 +122,13 @@ const Productos = () => {
             costo_promedio: producto.costo_promedio || '',
             stock: producto.stock.toString(),
         });
-        // Carga las tallas existentes del producto
-        const tallasEdit = TALLAS_OPCIONES.map(t => {
+
+        // Detectar tipo de talla del producto
+        const tipo = detectarTipo(producto.tallas);
+        setTipoTalla(tipo);
+
+        // Cargar tallas existentes del tipo detectado
+        const tallasEdit = TIPOS_TALLA[tipo].tallas.map(t => {
             const encontrada = producto.tallas?.find(pt => pt.talla === t);
             return {
                 talla: t,
@@ -121,6 +165,7 @@ const Productos = () => {
             }
             setMostrarForm(false);
             cargarProductos();
+            setError('');
         } catch {
             setError('Error al guardar el producto');
         }
@@ -215,12 +260,33 @@ const Productos = () => {
                             </div>
                         </div>
 
+                        {/* Selector tipo de talla */}
+                        <div style={styles.tipoTallaSeccion}>
+                            <p style={styles.tipoTallaTitulo}>📐 Tipo de talla</p>
+                            <div style={styles.tipoTallaGrid}>
+                                {Object.entries(TIPOS_TALLA).map(([key, cfg]) => (
+                                    <div
+                                        key={key}
+                                        onClick={() => handleTipoTallaChange(key)}
+                                        style={{
+                                            ...styles.tipoTallaCard,
+                                            borderColor: tipoTalla === key ? '#2e7d52' : '#e0ede6',
+                                            backgroundColor: tipoTalla === key ? '#e8f5ee' : 'white',
+                                        }}
+                                    >
+                                        <span style={styles.tipoTallaLabel}>{cfg.label}</span>
+                                        <span style={styles.tipoTallaDesc}>{cfg.descripcion}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Sección de tallas */}
                         <div style={styles.tallasSeccion}>
                             <p style={styles.tallastitulo}>
                                 👗 Tallas disponibles
                                 <span style={styles.tallasHint}>
-                                    — Marca las tallas que compraste y escribe la cantidad
+                                    — Marca las tallas que tienes y escribe la cantidad
                                 </span>
                             </p>
                             <div style={styles.tallasGrid}>
@@ -271,13 +337,12 @@ const Productos = () => {
                 <div style={styles.listaContainer}>
                     {productos.length === 0 ? (
                         <div style={styles.sinDatos}>
+                            <p style={{ fontSize: '40px', margin: 0 }}>👕</p>
                             <p>No hay productos registrados</p>
                         </div>
                     ) : (
                         productos.map((p) => (
                             <div key={p.id_producto} style={styles.productoCard}>
-
-                                {/* Fila principal */}
                                 <div style={styles.productoFila}>
                                     <div style={styles.productoInfo}>
                                         <div style={styles.productoNombreRow}>
@@ -328,20 +393,27 @@ const Productos = () => {
                                         {p.tallas && p.tallas.length > 0 ? (
                                             <div style={styles.tallasRow}>
                                                 {p.tallas.map((t) => (
-                                                    <div key={t.id_talla} style={styles.tallaPill}>
-                                                        <span style={styles.tallaPillNombre}>{t.talla}</span>
-                                                        <span style={styles.tallaPillCantidad}>{t.cantidad} uds</span>
+                                                    <div key={t.id_talla} style={{
+                                                        ...styles.tallaPill,
+                                                        backgroundColor: t.cantidad === 0 ? '#fdecea' : t.cantidad < 3 ? '#fff3e0' : '#e8f5ee',
+                                                    }}>
+                                                        <span style={{
+                                                            ...styles.tallaPillNombre,
+                                                            color: t.cantidad === 0 ? '#e53935' : t.cantidad < 3 ? '#e65100' : '#2e7d52',
+                                                        }}>
+                                                            {t.talla}
+                                                        </span>
+                                                        <span style={styles.tallaPillCantidad}>
+                                                            {t.cantidad === 0 ? 'Sin stock' : `${t.cantidad} uds`}
+                                                        </span>
                                                     </div>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <p style={{ color: '#999', fontSize: '13px' }}>
-                                                Sin tallas registradas
-                                            </p>
+                                            <p style={{ color: '#999', fontSize: '13px' }}>Sin tallas registradas</p>
                                         )}
                                     </div>
                                 )}
-
                             </div>
                         ))
                     )}
@@ -371,6 +443,15 @@ const styles = {
     botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
     botonCancelar: { backgroundColor: 'white', color: '#666', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' },
 
+    // Tipo de talla
+    tipoTallaSeccion: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '16px', marginBottom: '16px' },
+    tipoTallaTitulo: { fontSize: '14px', fontWeight: '700', color: '#2e7d52', margin: '0 0 12px 0' },
+    tipoTallaGrid: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+    tipoTallaCard: { flex: 1, minWidth: '140px', border: '2px solid #e0ede6', borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '4px', transition: 'all 0.2s' },
+    tipoTallaLabel: { fontSize: '13px', fontWeight: '700', color: '#2d2d2d' },
+    tipoTallaDesc: { fontSize: '11px', color: '#888' },
+
+    // Tallas
     tallasSeccion: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '18px' },
     tallastitulo: { fontSize: '14px', fontWeight: '700', color: '#2e7d52', marginBottom: '15px', marginTop: 0 },
     tallasHint: { fontSize: '12px', color: '#999', fontWeight: '400' },
@@ -382,6 +463,7 @@ const styles = {
     tallaNombre: { fontWeight: 'bold', fontSize: '15px', color: '#333' },
     tallaCantidad: { width: '100%', padding: '6px 8px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', textAlign: 'center', outline: 'none' },
 
+    // Lista
     listaContainer: { display: 'flex', flexDirection: 'column', gap: '12px' },
     productoCard: { backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden' },
     productoFila: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px' },
@@ -398,11 +480,10 @@ const styles = {
     botonEditar: { backgroundColor: '#e8f5ee', color: '#2e7d52', border: 'none', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     botonEliminar: { backgroundColor: '#fdecea', color: '#e53935', border: 'none', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
-
     tallasExpandidas: { borderTop: '1px solid #f0f4f0', padding: '15px 20px', backgroundColor: '#fafffe' },
     tallasRow: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
-    tallaPill: { display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#e8f5ee', borderRadius: '8px', padding: '8px 16px', minWidth: '60px' },
-    tallaPillNombre: { fontWeight: 'bold', color: '#2e7d52', fontSize: '15px' },
+    tallaPill: { display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: '8px', padding: '8px 16px', minWidth: '60px' },
+    tallaPillNombre: { fontWeight: 'bold', fontSize: '15px' },
     tallaPillCantidad: { fontSize: '12px', color: '#555', marginTop: '2px' },
     sinDatos: { backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999' },
 };

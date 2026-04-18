@@ -122,12 +122,28 @@ const Pagos = () => {
         return cliente ? `${cliente.nombre} ${cliente.apellido || ''}`.trim() : `Cliente #${plan.id_cliente}`;
     };
 
-    const getNombreProducto = (idPlan) => {
-        const plan = planes.find(p => p.id_plan_separe === idPlan);
-        if (!plan) return '—';
-        const producto = productos.find(p => p.id_producto === plan.id_producto);
-        return producto ? producto.nombre : `Producto #${plan.id_producto}`;
-    };
+  // ✅ Así debe quedar — usa los detalles del plan
+        const getNombreProducto = (idPlan) => {
+            const plan = planes.find(p => p.id_plan_separe === idPlan);
+            if (!plan) return '—';
+
+            // Si tiene detalles (múltiples productos) los lista
+            if (plan.detalles && plan.detalles.length > 0) {
+                const nombres = plan.detalles.map(d => {
+                    const prod = productos.find(p => p.id_producto === d.id_producto);
+                    return prod ? `${prod.nombre} (${d.talla})` : `Producto #${d.id_producto}`;
+                });
+                return nombres.join(', ');
+            }
+
+            // Fallback por si tiene id_producto directo (planes viejos)
+            if (plan.id_producto) {
+                const producto = productos.find(p => p.id_producto === plan.id_producto);
+                return producto ? producto.nombre : `Producto #${plan.id_producto}`;
+            }
+
+            return '—';
+        };
 
     // Filtros
     const pagosFiltrados = pagos.filter(p => {

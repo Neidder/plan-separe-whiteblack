@@ -16,6 +16,7 @@ const Sidebar = () => {
         { path: '/clientes', icon: '👥', label: 'Clientes' },
         { path: '/proveedores', icon: '🏭', label: 'Proveedores' },
         { path: '/compras', icon: '🛒', label: 'Compras' },
+         { path: '/ventas', icon: '💵', label: 'Ventas' },
         { path: '/planes-separe', icon: '📋', label: 'Planes Separe' },
         { path: '/pagos', icon: '💰', label: 'Pagos' },
     ];
@@ -70,16 +71,18 @@ const Sidebar = () => {
 const styles = {
     sidebar: {
         width: '250px',
-        minHeight: '100vh',
+        height: '100vh',
         backgroundColor: '#ffffff',
         borderRight: '1px solid #e0ede6',
         display: 'flex',
         flexDirection: 'column',
-        padding: '20px 0 100px 0',
+        padding: '20px 0',
         position: 'fixed',
         top: 0,
         left: 0,
         boxShadow: '2px 0 15px rgba(0,0,0,0.05)',
+        overflowY: 'auto',        // ← permite scroll si hay muchos items
+        overflowX: 'hidden',
     },
     logo: {
         display: 'flex',
@@ -131,6 +134,7 @@ const styles = {
         flexDirection: 'column',
         flex: 1,
         padding: '0 10px',
+         
     },
     menuItem: {
         display: 'flex',
@@ -154,7 +158,6 @@ const styles = {
     },
     logout: {
         marginTop: 'auto',
-        margin: '10px 15px',
         padding: '12px',
         backgroundColor: '#fff',
         color: '#e53935',
@@ -163,6 +166,7 @@ const styles = {
         cursor: 'pointer',
         fontSize: '14px',
         fontWeight: 'bold',
+        flexShrink: 0, 
     },
     botonCerrar: {
     position: 'absolute',

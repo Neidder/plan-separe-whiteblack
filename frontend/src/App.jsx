@@ -7,6 +7,7 @@ import Proveedores from './pages/Proveedores';
 import Compras from './pages/Compras';
 import PlanesSepare from './pages/PlanesSepare';
 import Pagos from './pages/Pagos';
+import Ventas from './pages/Ventas';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
                 <Route path="/compras" element={<ProtectedRoute><Compras /></ProtectedRoute>} />
                 <Route path="/planes-separe" element={<ProtectedRoute><PlanesSepare /></ProtectedRoute>} />
                 <Route path="/pagos" element={<ProtectedRoute><Pagos /></ProtectedRoute>} />
+                <Route path="/ventas" element={<ProtectedRoute><Ventas /></ProtectedRoute>} />
             </Routes>
         </BrowserRouter>
     );
