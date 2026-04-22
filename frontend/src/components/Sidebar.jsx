@@ -16,7 +16,7 @@ const Sidebar = () => {
         { path: '/clientes', icon: '👥', label: 'Clientes' },
         { path: '/proveedores', icon: '🏭', label: 'Proveedores' },
         { path: '/compras', icon: '🛒', label: 'Compras' },
-         { path: '/ventas', icon: '💵', label: 'Ventas' },
+        { path: '/ventas', icon: '💵', label: 'Ventas' },
         { path: '/planes-separe', icon: '📋', label: 'Planes Separe' },
         { path: '/pagos', icon: '💰', label: 'Pagos' },
     ];
@@ -59,11 +59,10 @@ const Sidebar = () => {
                 ))}
             </nav>
 
-            {/* Logout */}
+            {/* Logout — siempre visible al fondo */}
             <button onClick={handleLogout} style={styles.logout}>
                 🚪 Cerrar Sesión
             </button>
-            
         </div>
     );
 };
@@ -81,8 +80,6 @@ const styles = {
         top: 0,
         left: 0,
         boxShadow: '2px 0 15px rgba(0,0,0,0.05)',
-        overflowY: 'auto',        // ← permite scroll si hay muchos items
-        overflowX: 'hidden',
     },
     logo: {
         display: 'flex',
@@ -90,6 +87,7 @@ const styles = {
         gap: '10px',
         padding: '0 20px 25px 20px',
         borderBottom: '1px solid #e0ede6',
+        flexShrink: 0, // 👈 evita que se comprima
     },
     logoIcon: {
         fontSize: '28px',
@@ -106,6 +104,7 @@ const styles = {
         padding: '20px',
         borderBottom: '1px solid #e0ede6',
         marginBottom: '10px',
+        flexShrink: 0, // 👈 evita que se comprima
     },
     avatar: {
         width: '40px',
@@ -132,9 +131,9 @@ const styles = {
     nav: {
         display: 'flex',
         flexDirection: 'column',
-        flex: 1,
+        flex: 1,           // 👈 ocupa el espacio disponible
+        overflowY: 'auto', // 👈 hace scroll si los items no caben
         padding: '0 10px',
-         
     },
     menuItem: {
         display: 'flex',
@@ -157,31 +156,17 @@ const styles = {
         fontSize: '18px',
     },
     logout: {
-        marginTop: 'auto',
+        flexShrink: 0,        // 👈 clave: nunca se comprime ni desaparece
+        margin: '10px 15px',
         padding: '12px',
-        backgroundColor: '#fff',
-        color: '#e53935',
-        border: '1px solid #e53935',
+        backgroundColor: '#e53935',
+        color: 'white',
+        border: 'none',
         borderRadius: '8px',
         cursor: 'pointer',
         fontSize: '14px',
         fontWeight: 'bold',
-        flexShrink: 0, 
     },
-    botonCerrar: {
-    position: 'absolute',
-    bottom: '20px',
-    left: '20px',
-    right: '20px',
-    backgroundColor: '#e94560',
-    color: 'white',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    paddingBottom: '30px',
-}
 };
 
 export default Sidebar;
