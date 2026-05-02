@@ -10,12 +10,13 @@ export const crearProveedor = async (data) => {
     return response.data;
 };
 
-export const actualizarProveedor = async (id, data) => {
-    const response = await api.put(`/proveedores/proveedores/${id}/`, data);
+export const actualizarProveedor = async (id_proveedor, data) => {
+    const response = await api.patch(`/proveedores/proveedores/${id_proveedor}/`, data);
     return response.data;
 };
 
-export const eliminarProveedor = async (id) => {
-    const response = await api.delete(`/proveedores/proveedores/${id}/`);
+export const eliminarProveedor = async (id_proveedor) => {
+    const response = await api.delete(`/proveedores/proveedores/${id_proveedor}/`);
     return response.data;
 };
+

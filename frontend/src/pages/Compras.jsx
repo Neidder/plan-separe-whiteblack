@@ -4,7 +4,15 @@ import { getCompras, crearCompra, getDetallesCompra } from '../api/compras';
 import { getProductos } from '../api/productos';
 import { getProveedores } from '../api/proveedores';
 
-const STOCK_MINIMO = 3; // Tallas con menos de esto se marcan en naranja
+const STOCK_MINIMO = 3;
+
+// Grupos de tallas disponibles para seleccionar al comprar
+const GRUPOS_TALLA = [
+    { label: '👕 Ropa', tallas: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+    { label: '👖 Pantalón adulto', tallas: ['28', '30', '32', '34', '36', '38', '40'] },
+    { label: '👗 Jeans dama / Mochos', tallas: ['1', '3', '5', '7', '9', '10', '12', '14'] },
+    { label: '🏷️ Talla única', tallas: ['ÚNICA'] },
+];
 
 const Compras = () => {
     const [compras, setCompras] = useState([]);
@@ -17,9 +25,9 @@ const Compras = () => {
     const [cargando, setCargando] = useState(false);
     const [idProveedor, setIdProveedor] = useState('');
 
-    // Cada item tiene: id_producto, precio_unitario, y un objeto tallas: {S: 0, M: 5, ...}
+    // Cada item: id_producto, precio_unitario, grupo de talla seleccionado, tallas: {S: 0, M: 5, ...}
     const [items, setItems] = useState([
-        { id_producto: '', precio_unitario: '', tallas: {} }
+        { id_producto: '', precio_unitario: '', grupoTalla: '', tallas: {} }
     ]);
 
     const usuario = JSON.parse(localStorage.getItem('usuario'));
@@ -47,22 +55,37 @@ const Compras = () => {
         return productos.find(p => p.id_producto === parseInt(idProducto));
     };
 
+    // Detectar el grupo de talla más adecuado según las tallas existentes del producto
+    const detectarGrupoTalla = (producto) => {
+        if (!producto?.tallas?.length) return '';
+        const primera = producto.tallas[0].talla;
+        for (const grupo of GRUPOS_TALLA) {
+            if (grupo.tallas.includes(primera)) return grupo.label;
+        }
+        return '';
+    };
+
     const handleProductoChange = (index, idProducto) => {
         const nuevos = [...items];
         nuevos[index].id_producto = idProducto;
         nuevos[index].tallas = {};
         const prod = getProductoSeleccionado(idProducto);
-        if (prod) {
-            nuevos[index].precio_unitario = prod.costo_promedio || '';
-        } else {
-            nuevos[index].precio_unitario = '';
-        }
+        nuevos[index].precio_unitario = prod?.costo_promedio || '';
+        nuevos[index].grupoTalla = prod ? detectarGrupoTalla(prod) : '';
         setItems(nuevos);
     };
 
     const handlePrecioChange = (index, valor) => {
         const nuevos = [...items];
         nuevos[index].precio_unitario = valor;
+        setItems(nuevos);
+    };
+
+    const handleGrupoTallaChange = (index, labelGrupo) => {
+        const nuevos = [...items];
+        nuevos[index].grupoTalla = labelGrupo;
+        // Limpiar tallas seleccionadas al cambiar de grupo
+        nuevos[index].tallas = {};
         setItems(nuevos);
     };
 
@@ -79,7 +102,7 @@ const Compras = () => {
     };
 
     const agregarItem = () => {
-        setItems([...items, { id_producto: '', precio_unitario: '', tallas: {} }]);
+        setItems([...items, { id_producto: '', precio_unitario: '', grupoTalla: '', tallas: {} }]);
     };
 
     const quitarItem = (index) => {
@@ -101,7 +124,6 @@ const Compras = () => {
     const handleGuardar = async () => {
         if (!idProveedor) { setError('Selecciona un proveedor'); return; }
 
-        // Convertir items a detalles por talla
         const detalles = [];
         for (const item of items) {
             if (!item.id_producto || !item.precio_unitario) continue;
@@ -132,7 +154,7 @@ const Compras = () => {
             await crearCompra(payload);
             setMostrarForm(false);
             setIdProveedor('');
-            setItems([{ id_producto: '', precio_unitario: '', tallas: {} }]);
+            setItems([{ id_producto: '', precio_unitario: '', grupoTalla: '', tallas: {} }]);
             cargarTodo();
             setError('');
         } catch (err) {
@@ -159,6 +181,21 @@ const Compras = () => {
     const getNombreProveedor = (id) => {
         const p = proveedores.find(p => p.id_proveedor === id);
         return p ? p.nombre_empresa : `Proveedor #${id}`;
+    };
+
+    // Obtener tallas del grupo seleccionado y su stock actual del producto
+    const getTallasDelGrupo = (item) => {
+        const grupo = GRUPOS_TALLA.find(g => g.label === item.grupoTalla);
+        if (!grupo) return [];
+        const prod = getProductoSeleccionado(item.id_producto);
+        return grupo.tallas.map(talla => {
+            const tallaExistente = prod?.tallas?.find(t => t.talla === talla);
+            return {
+                talla,
+                stockActual: tallaExistente ? tallaExistente.cantidad : 0,
+                tieneStock: !!tallaExistente,
+            };
+        });
     };
 
     return (
@@ -206,6 +243,7 @@ const Compras = () => {
                                 const prod = getProductoSeleccionado(item.id_producto);
                                 const totalUnidades = calcularTotalUnidades(item);
                                 const subtotal = calcularSubtotalItem(item);
+                                const tallasDelGrupo = getTallasDelGrupo(item);
 
                                 return (
                                     <div key={i} style={styles.itemCard}>
@@ -228,7 +266,7 @@ const Compras = () => {
                                                 </select>
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <label style={styles.labelSmall}>Costo unitario *</label>
+                                                <label style={styles.labelSmall}>Precio de costo *</label>
                                                 <input
                                                     type="number" min="0"
                                                     placeholder="$ precio de costo"
@@ -242,65 +280,92 @@ const Compras = () => {
                                             </button>
                                         </div>
 
-                                        {/* Cuadrícula de tallas */}
-                                        {prod ? (
+                                        {/* Solo mostrar tallas si hay producto */}
+                                        {item.id_producto ? (
                                             <>
-                                                <div style={styles.tallasGrid}>
-                                                    {prod.tallas && prod.tallas.length > 0 ? (
-                                                        prod.tallas.map(t => {
-                                                            const stockBajo = t.cantidad < STOCK_MINIMO;
-                                                            const cantidadComprar = item.tallas[t.talla] || 0;
-                                                            const stockNuevo = t.cantidad + cantidadComprar;
-
-                                                            return (
-                                                                <div key={t.talla} style={{
-                                                                    ...styles.tallaCard,
-                                                                    borderColor: stockBajo ? '#e65100' : cantidadComprar > 0 ? '#2e7d52' : '#e0ede6',
-                                                                    backgroundColor: cantidadComprar > 0 ? '#f0faf4' : stockBajo ? '#fff8f0' : 'white',
-                                                                }}>
-                                                                    {/* Nombre talla */}
-                                                                    <div style={styles.tallaNombre}>{t.talla}</div>
-
-                                                                    {/* Stock actual */}
-                                                                    <div style={styles.tallaStockActual}>
-                                                                        <span style={styles.tallaStockLabel}>Stock actual</span>
-                                                                        <span style={{
-                                                                            ...styles.tallaStockValor,
-                                                                            color: stockBajo ? '#e65100' : '#2e7d52'
-                                                                        }}>
-                                                                            {t.cantidad} uds
-                                                                            {stockBajo && <span style={styles.alertaIcon}>⚠️</span>}
-                                                                        </span>
-                                                                    </div>
-
-                                                                    {/* Input cantidad a comprar */}
-                                                                    <div style={styles.tallaInputContainer}>
-                                                                        <label style={styles.tallaInputLabel}>A comprar</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="0"
-                                                                            value={cantidadComprar || ''}
-                                                                            placeholder="0"
-                                                                            onChange={e => handleTallaCantidad(i, t.talla, e.target.value)}
-                                                                            style={styles.tallaInput}
-                                                                        />
-                                                                    </div>
-
-                                                                    {/* Stock nuevo */}
-                                                                    {cantidadComprar > 0 && (
-                                                                        <div style={styles.tallaStockNuevo}>
-                                                                            {t.cantidad} → <strong>{stockNuevo}</strong>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        <p style={styles.sinTallas}>
-                                                            Este producto no tiene tallas registradas
-                                                        </p>
-                                                    )}
+                                                {/* Selector de grupo de talla */}
+                                                <div style={styles.grupoTallaSeccion}>
+                                                    <p style={styles.grupoTallaTitulo}>📐 Tipo de talla</p>
+                                                    <div style={styles.grupoTallaRow}>
+                                                        {GRUPOS_TALLA.map(grupo => (
+                                                            <button
+                                                                key={grupo.label}
+                                                                onClick={() => handleGrupoTallaChange(i, grupo.label)}
+                                                                style={{
+                                                                    ...styles.grupoTallaBtn,
+                                                                    backgroundColor: item.grupoTalla === grupo.label ? '#2e7d52' : 'white',
+                                                                    color: item.grupoTalla === grupo.label ? 'white' : '#555',
+                                                                    border: `2px solid ${item.grupoTalla === grupo.label ? '#2e7d52' : '#e0ede6'}`,
+                                                                }}
+                                                            >
+                                                                {grupo.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
+
+                                                {/* Grid de chips de tallas */}
+                                                {item.grupoTalla && (
+                                                    <div style={styles.tallasSeccion}>
+                                                        <p style={styles.tallasSubTitulo}>
+                                                            👕 Tallas — ingresa la cantidad a comprar por talla
+                                                        </p>
+                                                        <div style={styles.tallasGrid}>
+                                                            {tallasDelGrupo.map(({ talla, stockActual, tieneStock }) => {
+                                                                const cantidadComprar = item.tallas[talla] || 0;
+                                                                const stockNuevo = stockActual + cantidadComprar;
+                                                                const stockBajo = tieneStock && stockActual < STOCK_MINIMO;
+                                                                const seleccionada = cantidadComprar > 0;
+
+                                                                return (
+                                                                    <div key={talla} style={{
+                                                                        ...styles.tallaCard,
+                                                                        borderColor: seleccionada ? '#2e7d52' : stockBajo ? '#e65100' : '#e0ede6',
+                                                                        backgroundColor: seleccionada ? '#f0faf4' : stockBajo ? '#fff8f0' : 'white',
+                                                                    }}>
+                                                                        {/* Nombre talla */}
+                                                                        <div style={styles.tallaNombre}>{talla}</div>
+
+                                                                        {/* Stock actual */}
+                                                                        <div style={styles.tallaStockActual}>
+                                                                            <span style={styles.tallaStockLabel}>Stock actual</span>
+                                                                            <span style={{
+                                                                                ...styles.tallaStockValor,
+                                                                                color: !tieneStock ? '#aaa' : stockBajo ? '#e65100' : '#2e7d52'
+                                                                            }}>
+                                                                                {tieneStock ? `${stockActual} uds` : 'Sin registro'}
+                                                                                {stockBajo && <span style={styles.alertaIcon}> ⚠️</span>}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {/* Input cantidad a comprar */}
+                                                                        <div style={styles.tallaInputContainer}>
+                                                                            <label style={styles.tallaInputLabel}>A comprar</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                value={cantidadComprar || ''}
+                                                                                placeholder="0"
+                                                                                onChange={e => handleTallaCantidad(i, talla, e.target.value)}
+                                                                                style={{
+                                                                                    ...styles.tallaInput,
+                                                                                    borderColor: seleccionada ? '#2e7d52' : '#ccc',
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        {/* Stock nuevo */}
+                                                                        {cantidadComprar > 0 && (
+                                                                            <div style={styles.tallaStockNuevo}>
+                                                                                {stockActual} → <strong>{stockNuevo}</strong>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {/* Resumen del item */}
                                                 {totalUnidades > 0 && (
@@ -316,7 +381,7 @@ const Compras = () => {
                                             </>
                                         ) : (
                                             <div style={styles.seleccionaProducto}>
-                                                👆 Selecciona un producto para ver sus tallas
+                                                👆 Selecciona un producto para ver las tallas disponibles
                                             </div>
                                         )}
                                     </div>
@@ -355,7 +420,10 @@ const Compras = () => {
                             <button onClick={handleGuardar} style={styles.botonGuardar}>
                                 💾 Registrar Compra
                             </button>
-                            <button onClick={() => { setMostrarForm(false); setItems([{ id_producto: '', precio_unitario: '', tallas: {} }]); }} style={styles.botonCancelar}>
+                            <button onClick={() => {
+                                setMostrarForm(false);
+                                setItems([{ id_producto: '', precio_unitario: '', grupoTalla: '', tallas: {} }]);
+                            }} style={styles.botonCancelar}>
                                 Cancelar
                             </button>
                         </div>
@@ -409,6 +477,7 @@ const Compras = () => {
                                                     <thead>
                                                         <tr style={styles.tablaHeader}>
                                                             <th style={styles.th}>Producto</th>
+                                                            <th style={styles.th}>Talla</th>
                                                             <th style={styles.th}>Cantidad</th>
                                                             <th style={styles.th}>Precio Unit.</th>
                                                             <th style={styles.th}>Subtotal</th>
@@ -418,6 +487,9 @@ const Compras = () => {
                                                         {detalles.detalles?.map(d => (
                                                             <tr key={d.id_detalle} style={styles.tablaFila}>
                                                                 <td style={styles.td}>{getNombreProducto(d.id_producto)}</td>
+                                                                <td style={styles.td}>
+                                                                    <span style={styles.tallaPill}>{d.talla}</span>
+                                                                </td>
                                                                 <td style={styles.td}>{d.cantidad} uds</td>
                                                                 <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
                                                                 <td style={styles.td}>${Number(d.subtotal).toLocaleString()}</td>
@@ -462,21 +534,28 @@ const styles = {
     itemHeader: { display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '16px' },
     botonQuitar: { backgroundColor: '#fdecea', color: '#e53935', border: 'none', width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 },
 
-    tallasGrid: { display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' },
-    tallaCard: { border: '2px solid #e0ede6', borderRadius: '10px', padding: '12px', minWidth: '100px', backgroundColor: 'white', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '6px' },
-    tallaNombre: { fontSize: '18px', fontWeight: 'bold', color: '#2d2d2d', textAlign: 'center' },
+    // Selector de grupo de talla
+    grupoTallaSeccion: { marginBottom: '14px' },
+    grupoTallaTitulo: { fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 8px 0' },
+    grupoTallaRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
+    grupoTallaBtn: { padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.15s' },
+
+    // Grid de chips de tallas
+    tallasSeccion: { marginBottom: '12px' },
+    tallasSubTitulo: { fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 10px 0' },
+    tallasGrid: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+    tallaCard: { border: '2px solid #e0ede6', borderRadius: '10px', padding: '10px 12px', minWidth: '90px', backgroundColor: 'white', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center' },
+    tallaNombre: { fontSize: '17px', fontWeight: 'bold', color: '#2d2d2d', textAlign: 'center' },
     tallaStockActual: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
     tallaStockLabel: { fontSize: '10px', color: '#aaa' },
-    tallaStockValor: { fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px' },
-    alertaIcon: { fontSize: '12px' },
+    tallaStockValor: { fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' },
+    alertaIcon: { fontSize: '11px' },
     tallaInputContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' },
     tallaInputLabel: { fontSize: '10px', color: '#888' },
-    tallaInput: { width: '70px', padding: '5px 8px', border: '1.5px solid #ccc', borderRadius: '6px', fontSize: '14px', textAlign: 'center', outline: 'none' },
+    tallaInput: { width: '68px', padding: '5px 8px', border: '1.5px solid #ccc', borderRadius: '6px', fontSize: '14px', textAlign: 'center', outline: 'none' },
     tallaStockNuevo: { fontSize: '11px', color: '#1565c0', textAlign: 'center', backgroundColor: '#e3f2fd', borderRadius: '4px', padding: '2px 6px' },
 
-    sinTallas: { color: '#999', fontSize: '13px', fontStyle: 'italic' },
     seleccionaProducto: { color: '#aaa', fontSize: '13px', textAlign: 'center', padding: '20px', fontStyle: 'italic' },
-
     itemResumen: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5ee', borderRadius: '8px', padding: '10px 14px' },
     itemResumenTexto: { fontSize: '13px', color: '#555' },
     itemResumenSubtotal: { fontSize: '14px', color: '#2e7d52' },
@@ -514,6 +593,7 @@ const styles = {
     th: { padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: '#555', fontWeight: '600' },
     tablaFila: { borderTop: '1px solid #f0f4f0' },
     td: { padding: '10px 14px', fontSize: '13px', color: '#333' },
+    tallaPill: { backgroundColor: '#e8f5ee', color: '#2e7d52', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
     sinDatos: { backgroundColor: 'white', borderRadius: '12px', padding: '50px', textAlign: 'center', color: '#999' },
 };
 

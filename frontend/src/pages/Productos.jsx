@@ -40,7 +40,6 @@ const formInicial = {
 const tallasIniciales = (tipo = 'ropa') =>
     TIPOS_TALLA[tipo].tallas.map(t => ({ talla: t, cantidad: 0, activa: false }));
 
-// Detecta qué tipo de talla tiene un producto existente
 const detectarTipo = (tallasProducto) => {
     if (!tallasProducto || tallasProducto.length === 0) return 'ropa';
     const primera = tallasProducto[0].talla;
@@ -123,11 +122,9 @@ const Productos = () => {
             stock: producto.stock.toString(),
         });
 
-        // Detectar tipo de talla del producto
         const tipo = detectarTipo(producto.tallas);
         setTipoTalla(tipo);
 
-        // Cargar tallas existentes del tipo detectado
         const tallasEdit = TIPOS_TALLA[tipo].tallas.map(t => {
             const encontrada = producto.tallas?.find(pt => pt.talla === t);
             return {
@@ -146,6 +143,17 @@ const Productos = () => {
             setError('Nombre y precio de venta son obligatorios');
             return;
         }
+
+        // ── Validación: precio_venta no puede ser menor al costo_promedio ──
+        const precioVenta = parseFloat(form.precio_venta);
+        const costoPromedio = parseFloat(form.costo_promedio);
+        if (form.costo_promedio && !isNaN(costoPromedio) && precioVenta < costoPromedio) {
+            setError(
+                `⚠️ El precio de venta ($${precioVenta.toLocaleString()}) no puede ser inferior al costo promedio ($${costoPromedio.toLocaleString()}). Estarías vendiendo a pérdida.`
+            );
+            return;
+        }
+
         const tallasActivas = tallas
             .filter(t => t.activa)
             .map(t => ({ talla: t.talla, cantidad: t.cantidad }));
@@ -166,8 +174,11 @@ const Productos = () => {
             setMostrarForm(false);
             cargarProductos();
             setError('');
-        } catch {
-            setError('Error al guardar el producto');
+        } catch (err) {
+            const msg = err.response?.data?.error
+                || err.response?.data?.precio_venta?.[0]
+                || 'Error al guardar el producto';
+            setError(msg);
         }
     };
 
@@ -180,6 +191,21 @@ const Productos = () => {
             setError('Error al eliminar el producto');
         }
     };
+
+    // Alerta visual si precio_venta < costo_promedio durante edición
+    const precioVentaNum = parseFloat(form.precio_venta);
+    const costoPromedioNum = parseFloat(form.costo_promedio);
+    const hayAlertaPrecio =
+        form.precio_venta &&
+        form.costo_promedio &&
+        !isNaN(precioVentaNum) &&
+        !isNaN(costoPromedioNum) &&
+        precioVentaNum < costoPromedioNum;
+
+    const margenGanancia =
+        form.precio_venta && form.costo_promedio && !isNaN(precioVentaNum) && !isNaN(costoPromedioNum) && costoPromedioNum > 0
+            ? (((precioVentaNum - costoPromedioNum) / costoPromedioNum) * 100).toFixed(1)
+            : null;
 
     return (
         <div style={styles.layout}>
@@ -206,6 +232,13 @@ const Productos = () => {
                             {productoEditando ? '✏️ Editar Producto' : '➕ Nuevo Producto'}
                         </h3>
 
+                        {/* Nota informativa para productos nuevos */}
+                        {!productoEditando && (
+                            <div style={styles.notaInfo}>
+                                ℹ️ Al crear el producto, la <strong>cantidad</strong> y el <strong>costo promedio</strong> se establecen al registrar la primera <strong>Compra</strong>. El precio de venta puedes ingresarlo ahora.
+                            </div>
+                        )}
+
                         {/* Datos básicos */}
                         <div style={styles.formGrid}>
                             <div style={styles.inputGroup}>
@@ -219,22 +252,38 @@ const Productos = () => {
                                 />
                             </div>
                             <div style={styles.inputGroup}>
-                                <label style={styles.label}>Precio de Venta *</label>
+                                <label style={styles.label}>
+                                    Precio de Venta *
+                                    {hayAlertaPrecio && (
+                                        <span style={styles.alertaLabel}> ⚠️ Menor al costo</span>
+                                    )}
+                                    {margenGanancia !== null && !hayAlertaPrecio && (
+                                        <span style={{ ...styles.margenLabel, color: parseFloat(margenGanancia) >= 0 ? '#2e7d52' : '#e53935' }}>
+                                            &nbsp;({margenGanancia >= 0 ? '+' : ''}{margenGanancia}% margen)
+                                        </span>
+                                    )}
+                                </label>
                                 <input
                                     name="precio_venta"
                                     placeholder="Ej: 50000"
                                     type="number"
+                                    min="0"
                                     value={form.precio_venta}
                                     onChange={handleChange}
-                                    style={styles.input}
+                                    style={{
+                                        ...styles.input,
+                                        borderColor: hayAlertaPrecio ? '#e53935' : '#e0ede6',
+                                        backgroundColor: hayAlertaPrecio ? '#fff5f5' : 'white',
+                                    }}
                                 />
                             </div>
                             <div style={styles.inputGroup}>
                                 <label style={styles.label}>Costo Promedio</label>
                                 <input
                                     name="costo_promedio"
-                                    placeholder="Ej: 30000"
+                                    placeholder={productoEditando ? 'Ej: 30000' : 'Se actualiza con compras'}
                                     type="number"
+                                    min="0"
                                     value={form.costo_promedio}
                                     onChange={handleChange}
                                     style={styles.input}
@@ -243,7 +292,7 @@ const Productos = () => {
                             <div style={styles.inputGroup}>
                                 <label style={styles.label}>Stock Total (calculado)</label>
                                 <input
-                                    value={form.stock}
+                                    value={productoEditando ? form.stock : '0 — se llena con compras'}
                                     readOnly
                                     style={{ ...styles.input, backgroundColor: '#f0f4f0', color: '#2e7d52', fontWeight: 'bold' }}
                                 />
@@ -259,6 +308,13 @@ const Productos = () => {
                                 />
                             </div>
                         </div>
+
+                        {/* Alerta de precio menor al costo */}
+                        {hayAlertaPrecio && (
+                            <div style={styles.alertaPrecio}>
+                                ⚠️ <strong>Atención:</strong> El precio de venta (${precioVentaNum.toLocaleString()}) es menor al costo promedio (${costoPromedioNum.toLocaleString()}). Esto generaría una pérdida de ${(costoPromedioNum - precioVentaNum).toLocaleString()} por unidad vendida.
+                            </div>
+                        )}
 
                         {/* Selector tipo de talla */}
                         <div style={styles.tipoTallaSeccion}>
@@ -286,7 +342,9 @@ const Productos = () => {
                             <p style={styles.tallastitulo}>
                                 👗 Tallas disponibles
                                 <span style={styles.tallasHint}>
-                                    — Marca las tallas que tienes y escribe la cantidad
+                                    {productoEditando
+                                        ? ' — Marca las tallas activas'
+                                        : ' — Selecciona las tallas del producto (cantidades se llenarán con compras)'}
                                 </span>
                             </p>
                             <div style={styles.tallasGrid}>
@@ -307,7 +365,7 @@ const Productos = () => {
                                             </span>
                                             <span style={styles.tallaNombre}>{t.talla}</span>
                                         </div>
-                                        {t.activa && (
+                                        {t.activa && productoEditando && (
                                             <input
                                                 type="number"
                                                 min="0"
@@ -317,13 +375,22 @@ const Productos = () => {
                                                 placeholder="Cant."
                                             />
                                         )}
+                                        {t.activa && !productoEditando && (
+                                            <span style={styles.tallaNotaCompra}>Vía compras</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         <div style={styles.formBotones}>
-                            <button onClick={handleGuardar} style={styles.botonGuardar}>
+                            <button
+                                onClick={handleGuardar}
+                                style={{
+                                    ...styles.botonGuardar,
+                                    opacity: hayAlertaPrecio ? 0.7 : 1,
+                                }}
+                            >
                                 💾 Guardar Producto
                             </button>
                             <button onClick={() => setMostrarForm(false)} style={styles.botonCancelar}>
@@ -341,81 +408,105 @@ const Productos = () => {
                             <p>No hay productos registrados</p>
                         </div>
                     ) : (
-                        productos.map((p) => (
-                            <div key={p.id_producto} style={styles.productoCard}>
-                                <div style={styles.productoFila}>
-                                    <div style={styles.productoInfo}>
-                                        <div style={styles.productoNombreRow}>
-                                            <span style={styles.productoNombre}>{p.nombre}</span>
-                                            <span style={{
-                                                ...styles.badge,
-                                                backgroundColor: p.activo ? '#e8f5ee' : '#fdecea',
-                                                color: p.activo ? '#2e7d52' : '#e53935',
-                                            }}>
-                                                {p.activo ? 'Activo' : 'Inactivo'}
-                                            </span>
-                                        </div>
-                                        {p.descripcion && (
-                                            <p style={styles.productoDesc}>{p.descripcion}</p>
-                                        )}
-                                        <div style={styles.productoPrecios}>
-                                            <span style={styles.precioVenta}>
-                                                💰 Venta: ${Number(p.precio_venta).toLocaleString()}
-                                            </span>
-                                            <span style={styles.precioCosto}>
-                                                📦 Costo: ${Number(p.costo_promedio || 0).toLocaleString()}
-                                            </span>
-                                            <span style={styles.stockTotal}>
-                                                🏷️ Stock total: {p.stock} uds
-                                            </span>
-                                        </div>
-                                    </div>
+                        productos.map((p) => {
+                            const pv = parseFloat(p.precio_venta || 0);
+                            const cp = parseFloat(p.costo_promedio || 0);
+                            const margen = cp > 0 ? (((pv - cp) / cp) * 100).toFixed(1) : null;
+                            const enPerdida = cp > 0 && pv < cp;
 
-                                    <div style={styles.productoAcciones}>
-                                        <button
-                                            onClick={() => setExpandido(expandido === p.id_producto ? null : p.id_producto)}
-                                            style={styles.botonVerTallas}
-                                        >
-                                            {expandido === p.id_producto ? '▲ Ocultar tallas' : '▼ Ver tallas'}
-                                        </button>
-                                        <button onClick={() => handleEditar(p)} style={styles.botonEditar}>
-                                            ✏️ Editar
-                                        </button>
-                                        <button onClick={() => handleEliminar(p.id_producto)} style={styles.botonEliminar}>
-                                            🗑️
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Tallas expandidas */}
-                                {expandido === p.id_producto && (
-                                    <div style={styles.tallasExpandidas}>
-                                        {p.tallas && p.tallas.length > 0 ? (
-                                            <div style={styles.tallasRow}>
-                                                {p.tallas.map((t) => (
-                                                    <div key={t.id_talla} style={{
-                                                        ...styles.tallaPill,
-                                                        backgroundColor: t.cantidad === 0 ? '#fdecea' : t.cantidad < 3 ? '#fff3e0' : '#e8f5ee',
-                                                    }}>
-                                                        <span style={{
-                                                            ...styles.tallaPillNombre,
-                                                            color: t.cantidad === 0 ? '#e53935' : t.cantidad < 3 ? '#e65100' : '#2e7d52',
-                                                        }}>
-                                                            {t.talla}
-                                                        </span>
-                                                        <span style={styles.tallaPillCantidad}>
-                                                            {t.cantidad === 0 ? 'Sin stock' : `${t.cantidad} uds`}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                            return (
+                                <div key={p.id_producto} style={styles.productoCard}>
+                                    <div style={styles.productoFila}>
+                                        <div style={styles.productoInfo}>
+                                            <div style={styles.productoNombreRow}>
+                                                <span style={styles.productoNombre}>{p.nombre}</span>
+                                                <span style={{
+                                                    ...styles.badge,
+                                                    backgroundColor: p.activo ? '#e8f5ee' : '#fdecea',
+                                                    color: p.activo ? '#2e7d52' : '#e53935',
+                                                }}>
+                                                    {p.activo ? 'Activo' : 'Inactivo'}
+                                                </span>
+                                                {enPerdida && (
+                                                    <span style={styles.badgePerdida}>
+                                                        ⚠️ Venta a pérdida
+                                                    </span>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <p style={{ color: '#999', fontSize: '13px' }}>Sin tallas registradas</p>
-                                        )}
+                                            {p.descripcion && (
+                                                <p style={styles.productoDesc}>{p.descripcion}</p>
+                                            )}
+                                            <div style={styles.productoPrecios}>
+                                                <span style={{
+                                                    ...styles.precioVenta,
+                                                    color: enPerdida ? '#e53935' : '#2e7d52'
+                                                }}>
+                                                    💰 Venta: ${Number(p.precio_venta).toLocaleString()}
+                                                </span>
+                                                <span style={styles.precioCosto}>
+                                                    📦 Costo: ${Number(p.costo_promedio || 0).toLocaleString()}
+                                                </span>
+                                                {margen !== null && (
+                                                    <span style={{
+                                                        ...styles.margenBadge,
+                                                        backgroundColor: parseFloat(margen) >= 0 ? '#e8f5ee' : '#fdecea',
+                                                        color: parseFloat(margen) >= 0 ? '#2e7d52' : '#e53935',
+                                                    }}>
+                                                        {parseFloat(margen) >= 0 ? '📈' : '📉'} {margen >= 0 ? '+' : ''}{margen}% margen
+                                                    </span>
+                                                )}
+                                                <span style={styles.stockTotal}>
+                                                    🏷️ Stock total: {p.stock} uds
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div style={styles.productoAcciones}>
+                                            <button
+                                                onClick={() => setExpandido(expandido === p.id_producto ? null : p.id_producto)}
+                                                style={styles.botonVerTallas}
+                                            >
+                                                {expandido === p.id_producto ? '▲ Ocultar tallas' : '▼ Ver tallas'}
+                                            </button>
+                                            <button onClick={() => handleEditar(p)} style={styles.botonEditar}>
+                                                ✏️ Editar
+                                            </button>
+                                            <button onClick={() => handleEliminar(p.id_producto)} style={styles.botonEliminar}>
+                                                🗑️
+                                            </button>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        ))
+
+                                    {/* Tallas expandidas */}
+                                    {expandido === p.id_producto && (
+                                        <div style={styles.tallasExpandidas}>
+                                            {p.tallas && p.tallas.length > 0 ? (
+                                                <div style={styles.tallasRow}>
+                                                    {p.tallas.map((t) => (
+                                                        <div key={t.id_talla} style={{
+                                                            ...styles.tallaPill,
+                                                            backgroundColor: t.cantidad === 0 ? '#fdecea' : t.cantidad < 3 ? '#fff3e0' : '#e8f5ee',
+                                                        }}>
+                                                            <span style={{
+                                                                ...styles.tallaPillNombre,
+                                                                color: t.cantidad === 0 ? '#e53935' : t.cantidad < 3 ? '#e65100' : '#2e7d52',
+                                                            }}>
+                                                                {t.talla}
+                                                            </span>
+                                                            <span style={styles.tallaPillCantidad}>
+                                                                {t.cantidad === 0 ? 'Sin stock' : `${t.cantidad} uds`}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p style={{ color: '#999', fontSize: '13px' }}>Sin tallas registradas</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     )}
                 </div>
 
@@ -434,8 +525,14 @@ const styles = {
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
 
     formulario: { backgroundColor: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 15px rgba(0,0,0,0.06)' },
-    formTitulo: { color: '#2e7d52', marginBottom: '20px', marginTop: 0 },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' },
+    formTitulo: { color: '#2e7d52', marginBottom: '16px', marginTop: 0 },
+
+    notaInfo: { backgroundColor: '#e3f2fd', border: '1px solid #90caf9', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#1565c0', marginBottom: '20px' },
+    alertaPrecio: { backgroundColor: '#fff3e0', border: '1.5px solid #ff9800', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#e65100', marginBottom: '16px' },
+    alertaLabel: { color: '#e53935', fontSize: '12px', fontWeight: '600' },
+    margenLabel: { fontSize: '12px', fontWeight: '600' },
+
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '16px' },
     inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
     label: { fontSize: '13px', color: '#555', fontWeight: '600' },
     input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none' },
@@ -462,24 +559,27 @@ const styles = {
     tallaCheck: { fontSize: '14px' },
     tallaNombre: { fontWeight: 'bold', fontSize: '15px', color: '#333' },
     tallaCantidad: { width: '100%', padding: '6px 8px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', textAlign: 'center', outline: 'none' },
+    tallaNotaCompra: { fontSize: '11px', color: '#1565c0', fontStyle: 'italic', display: 'block', textAlign: 'center' },
 
     // Lista
     listaContainer: { display: 'flex', flexDirection: 'column', gap: '12px' },
     productoCard: { backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden' },
     productoFila: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px' },
     productoInfo: { flex: 1 },
-    productoNombreRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' },
+    productoNombreRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' },
     productoNombre: { fontSize: '16px', fontWeight: 'bold', color: '#2d2d2d' },
     productoDesc: { fontSize: '13px', color: '#888', margin: '4px 0 8px 0' },
-    productoPrecios: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
-    precioVenta: { fontSize: '13px', color: '#2e7d52', fontWeight: '600' },
+    productoPrecios: { display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' },
+    precioVenta: { fontSize: '13px', fontWeight: '600' },
     precioCosto: { fontSize: '13px', color: '#666' },
     stockTotal: { fontSize: '13px', color: '#1565c0', fontWeight: '600' },
+    margenBadge: { fontSize: '12px', fontWeight: '600', padding: '2px 8px', borderRadius: '12px' },
+    badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
+    badgePerdida: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', backgroundColor: '#fff3e0', color: '#e65100' },
     productoAcciones: { display: 'flex', gap: '8px', alignItems: 'center' },
     botonVerTallas: { backgroundColor: '#f0f4f0', color: '#555', border: 'none', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     botonEditar: { backgroundColor: '#e8f5ee', color: '#2e7d52', border: 'none', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     botonEliminar: { backgroundColor: '#fdecea', color: '#e53935', border: 'none', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
-    badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
     tallasExpandidas: { borderTop: '1px solid #f0f4f0', padding: '15px 20px', backgroundColor: '#fafffe' },
     tallasRow: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
     tallaPill: { display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: '8px', padding: '8px 16px', minWidth: '60px' },
