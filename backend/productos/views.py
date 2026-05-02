@@ -43,14 +43,41 @@ class ProductoViewSet(viewsets.ModelViewSet):
                 referencia='Ajuste manual'
             )
 
+    def _validar_precio_venta(self, precio_venta, costo_promedio):
+        """Valida que el precio de venta no sea inferior al costo promedio."""
+        if precio_venta is not None and costo_promedio is not None:
+            try:
+                pv = float(precio_venta)
+                cp = float(costo_promedio)
+                if cp > 0 and pv < cp:
+                    return Response(
+                        {
+                            'error': (
+                                f'El precio de venta (${pv:,.0f}) no puede ser inferior al costo promedio '
+                                f'(${cp:,.0f}). Esto generaría una pérdida de ${(cp - pv):,.0f} por unidad.'
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (ValueError, TypeError):
+                pass
+        return None
+
     def create(self, request, *args, **kwargs):
-        # Separamos las tallas del resto de datos
         tallas_data = request.data.get('tallas', [])
+
+        # Validar precio_venta vs costo_promedio
+        error_precio = self._validar_precio_venta(
+            request.data.get('precio_venta'),
+            request.data.get('costo_promedio')
+        )
+        if error_precio:
+            return error_precio
+
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             self.perform_create(serializer)
             producto = serializer.instance
-            # Guardamos cada talla
             for t in tallas_data:
                 if t.get('talla') and t.get('cantidad') is not None:
                     ProductoTalla.objects.create(
@@ -67,11 +94,20 @@ class ProductoViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         tallas_data = request.data.get('tallas', [])
+
+        # Determinar costo_promedio a comparar: el enviado o el existente
+        precio_venta = request.data.get('precio_venta')
+        costo_promedio = request.data.get('costo_promedio') or instance.costo_promedio
+
+        # Validar precio_venta vs costo_promedio
+        error_precio = self._validar_precio_venta(precio_venta, costo_promedio)
+        if error_precio:
+            return error_precio
+
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid():
             self.perform_update(serializer)
             producto = serializer.instance
-            # Reemplazamos todas las tallas
             if tallas_data:
                 ProductoTalla.objects.filter(id_producto=producto).delete()
                 for t in tallas_data:

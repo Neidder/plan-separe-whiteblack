@@ -19,6 +19,7 @@ class DetalleCompra(models.Model):
     id_detalle = models.AutoField(primary_key=True)
     id_compra = models.ForeignKey(Compras, models.DO_NOTHING, db_column='id_compra', blank=True, null=True)
     id_producto = models.ForeignKey(Productos, models.DO_NOTHING, db_column='id_producto', blank=True, null=True)
+    
     cantidad = models.IntegerField()
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
