@@ -1,12 +1,20 @@
 from rest_framework import serializers
 from .models import Compras, DetalleCompra
-from productos.models import Productos
+from productos.models import Productos, ProductoTalla
 
 
 class DetalleCompraSerializer(serializers.ModelSerializer):
+    tallas = serializers.SerializerMethodField()
+
     class Meta:
         model = DetalleCompra
         fields = '__all__'
+
+    def get_tallas(self, obj):
+        if not obj.id_producto:
+            return []
+        tallas = ProductoTalla.objects.filter(id_producto=obj.id_producto)
+        return [{'talla': t.talla, 'cantidad': t.cantidad} for t in tallas]
 
     def validate(self, data):
         cantidad = data.get('cantidad', 0)

@@ -112,11 +112,34 @@ class CompraViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def detalles(self, request, pk=None):
         compra = self.get_object()
-        detalles = DetalleCompra.objects.filter(id_compra=compra)
-        serializer = DetalleCompraSerializer(detalles, many=True)
+        detalles_qs = DetalleCompra.objects.filter(id_compra=compra)
+
+        # Construir respuesta enriquecida con tallas desde producto_tallas
+        detalles_data = []
+        for d in detalles_qs:
+            # Traer todas las tallas del producto con sus cantidades actuales
+            tallas_producto = []
+            if d.id_producto:
+                tallas_qs = ProductoTalla.objects.filter(
+                    id_producto=d.id_producto
+                ).order_by('talla')
+                tallas_producto = [
+                    {'talla': t.talla, 'cantidad': t.cantidad}
+                    for t in tallas_qs
+                ]
+
+            detalles_data.append({
+                'id_detalle': d.id_detalle,
+                'id_producto': d.id_producto_id,
+                'cantidad': d.cantidad,
+                'precio_unitario': d.precio_unitario,
+                'subtotal': d.subtotal,
+                'tallas': tallas_producto,
+            })
+
         return Response({
             'compra': CompraSerializer(compra).data,
-            'detalles': serializer.data
+            'detalles': detalles_data,
         })
 
 
