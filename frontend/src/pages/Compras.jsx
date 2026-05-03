@@ -477,7 +477,7 @@ const Compras = () => {
                                                     <thead>
                                                         <tr style={styles.tablaHeader}>
                                                             <th style={styles.th}>Producto</th>
-                                                            <th style={styles.th}>Talla</th>
+                                                            
                                                             <th style={styles.th}>Cantidad</th>
                                                             <th style={styles.th}>Precio Unit.</th>
                                                             <th style={styles.th}>Subtotal</th>
@@ -487,9 +487,7 @@ const Compras = () => {
                                                         {detalles.detalles?.map(d => (
                                                             <tr key={d.id_detalle} style={styles.tablaFila}>
                                                                 <td style={styles.td}>{getNombreProducto(d.id_producto)}</td>
-                                                                <td style={styles.td}>
-                                                                    <span style={styles.tallaPill}>{d.talla}</span>
-                                                                </td>
+                                                                
                                                                 <td style={styles.td}>{d.cantidad} uds</td>
                                                                 <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
                                                                 <td style={styles.td}>${Number(d.subtotal).toLocaleString()}</td>
