@@ -69,7 +69,7 @@ const Dashboard = () => {
                     </button>
                 </div>
 
-                {/* ── Tarjetas generales ── */}
+                {/* Tarjetas Generales */}
                 <div style={styles.cardsGrid}>
                     {[
                         { icon: '👥', label: 'Clientes', valor: data.generales.clientes, color: '#1565c0', bg: '#e3f2fd' },
@@ -89,11 +89,45 @@ const Dashboard = () => {
                     ))}
                 </div>
 
-                {/* ── Finanzas del mes ── */}
-                <div style={styles.seccionTitulo}>💰 Resumen financiero del mes</div>
+                {/* Rendimiento de Ventas (Solo 3 tarjetas ahora) */}
+                <div style={styles.seccionTitulo}>📊 Rendimiento de Ventas</div>
+                <div style={{ ...styles.finanzasGrid, gridTemplateColumns: 'repeat(3, 1fr)' }}> 
+                    <div style={{ ...styles.finanzaCard, borderLeft: '4px solid #2e7d52' }}>
+                        <div style={styles.finanzaTop}>
+                            <span style={styles.finanzaIcon}>💰</span>
+                            <span style={styles.finanzaLabel}>Ventas de Hoy ({data.ventas_hoy.cantidad})</span>
+                        </div>
+                        <p style={{ ...styles.finanzaValor, color: '#2e7d52' }}>
+                            ${Number(data.ventas_hoy.monto).toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div style={{ ...styles.finanzaCard, borderLeft: '4px solid #1565c0' }}>
+                        <div style={styles.finanzaTop}>
+                            <span style={styles.finanzaIcon}>📅</span>
+                            <span style={styles.finanzaLabel}>Ventas Directas Mes</span>
+                        </div>
+                        <p style={{ ...styles.finanzaValor, color: '#1565c0' }}>
+                            ${Number(data.finanzas.ventas_directas_mes).toLocaleString()}
+                        </p>
+                    </div>
+
+                    <div style={{ ...styles.finanzaCard, borderLeft: '4px solid #6a1b9a' }}>
+                        <div style={styles.finanzaTop}>
+                            <span style={styles.finanzaIcon}>📈</span>
+                            <span style={styles.finanzaLabel}>Ingresos Totales (Mes)</span>
+                        </div>
+                        <p style={{ ...styles.finanzaValor, color: '#6a1b9a' }}>
+                            ${Number(data.finanzas.ingresos_totales_mes).toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Otros indicadores */}
+                <div style={styles.seccionTitulo}>💰 Otros indicadores</div>
                 <div style={styles.finanzasGrid}>
                     {[
-                        { label: 'Recaudado este mes', valor: data.finanzas.recaudado_mes, color: '#2e7d52', icon: '📈' },
+                        { label: 'Recaudado (Abonos)', valor: data.finanzas.recaudado_mes, color: '#2e7d52', icon: '📥' },
                         { label: 'Compras este mes', valor: data.finanzas.compras_mes, color: '#e53935', icon: '📉' },
                         { label: 'Saldo pendiente', valor: data.finanzas.saldo_pendiente, color: '#e65100', icon: '⏳' },
                         { label: 'Planes vencidos', valor: data.finanzas.planes_vencidos, color: '#e53935', icon: '⚠️', esCantidad: true },
@@ -110,10 +144,8 @@ const Dashboard = () => {
                     ))}
                 </div>
 
-                {/* ── Fila de tablas ── */}
+                {/* Tablas Inferiores */}
                 <div style={styles.tablasFila}>
-
-                    {/* Últimos pagos */}
                     <div style={styles.tablaCard}>
                         <p style={styles.tablaTitulo}>💰 Últimos pagos</p>
                         {data.ultimos_pagos.length === 0 ? (
@@ -132,9 +164,7 @@ const Dashboard = () => {
                                     {data.ultimos_pagos.map(p => (
                                         <tr key={p.id} style={styles.tablaFila}>
                                             <td style={styles.td}>{p.cliente}</td>
-                                            <td style={styles.td}>
-                                                {METODO_ICONS[p.metodo] || '💰'} {p.metodo}
-                                            </td>
+                                            <td style={styles.td}>{METODO_ICONS[p.metodo] || '💰'} {p.metodo}</td>
                                             <td style={{ ...styles.td, color: '#2e7d52', fontWeight: 'bold' }}>
                                                 ${Number(p.monto).toLocaleString()}
                                             </td>
@@ -146,7 +176,6 @@ const Dashboard = () => {
                         )}
                     </div>
 
-                    {/* Últimas compras */}
                     <div style={styles.tablaCard}>
                         <p style={styles.tablaTitulo}>🛒 Últimas compras</p>
                         {data.ultimas_compras.length === 0 ? (
@@ -176,16 +205,11 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* ── Fila inferior ── */}
                 <div style={styles.tablasFila}>
-
-                    {/* Stock bajo */}
                     <div style={styles.tablaCard}>
-                        <p style={styles.tablaTitulo}>⚠️ Productos con stock bajo</p>
+                        <p style={styles.tablaTitulo}>⚠️ Stock bajo</p>
                         {data.productos_stock_bajo.length === 0 ? (
-                            <p style={{ ...styles.sinDatos, color: '#2e7d52' }}>
-                                ✅ Todos los productos tienen buen stock
-                            </p>
+                            <p style={{ ...styles.sinDatos, color: '#2e7d52' }}>✅ Stock al día</p>
                         ) : (
                             <div style={styles.stockLista}>
                                 {data.productos_stock_bajo.map((p, i) => (
@@ -204,40 +228,31 @@ const Dashboard = () => {
                         )}
                     </div>
 
-                    {/* Pagos por método */}
                     <div style={styles.tablaCard}>
-                        <p style={styles.tablaTitulo}>📊 Pagos por método (últimos 30 días)</p>
-                        {Object.keys(data.pagos_por_metodo).length === 0 ? (
-                            <p style={styles.sinDatos}>Sin pagos en los últimos 30 días</p>
-                        ) : (
-                            <div style={styles.metodosLista}>
-                                {Object.entries(data.pagos_por_metodo).map(([metodo, monto]) => {
-                                    const porcentaje = totalMetodos > 0 ? (monto / totalMetodos) * 100 : 0;
-                                    return (
-                                        <div key={metodo} style={styles.metodoItem}>
-                                            <div style={styles.metodoTop}>
-                                                <span style={styles.metodoNombre}>
-                                                    {METODO_ICONS[metodo] || '💰'} {metodo.charAt(0).toUpperCase() + metodo.slice(1)}
-                                                </span>
-                                                <span style={styles.metodoMonto}>
-                                                    ${Number(monto).toLocaleString()}
-                                                </span>
-                                            </div>
-                                            <div style={styles.barraContainer}>
-                                                <div style={{
-                                                    ...styles.barraFill,
-                                                    width: `${porcentaje}%`,
-                                                    backgroundColor: metodo === 'efectivo' ? '#2e7d52' : metodo === 'transferencia' ? '#1565c0' : '#6a1b9a',
-                                                }} />
-                                            </div>
-                                            <span style={styles.metodoPorcentaje}>{porcentaje.toFixed(0)}%</span>
+                        <p style={styles.tablaTitulo}>📊 Métodos (30 días)</p>
+                        <div style={styles.metodosLista}>
+                            {Object.entries(data.pagos_por_metodo).map(([metodo, monto]) => {
+                                const porcentaje = totalMetodos > 0 ? (monto / totalMetodos) * 100 : 0;
+                                return (
+                                    <div key={metodo} style={styles.metodoItem}>
+                                        <div style={styles.metodoTop}>
+                                            <span style={styles.metodoNombre}>
+                                                {METODO_ICONS[metodo] || '💰'} {metodo}
+                                            </span>
+                                            <span style={styles.metodoMonto}>${Number(monto).toLocaleString()}</span>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                        <div style={styles.barraContainer}>
+                                            <div style={{
+                                                ...styles.barraFill,
+                                                width: `${porcentaje}%`,
+                                                backgroundColor: metodo === 'efectivo' ? '#2e7d52' : '#1565c0',
+                                            }} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -253,13 +268,11 @@ const styles = {
     botonRefresh: { backgroundColor: 'white', color: '#2e7d52', border: '1.5px solid #2e7d52', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' },
     cargando: { textAlign: 'center', padding: '80px', color: '#999' },
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '15px', borderRadius: '8px' },
-
     cardsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '25px' },
     card: { backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '16px' },
     cardIcono: { width: '50px', height: '50px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 },
     cardValor: { fontSize: '28px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
     cardLabel: { fontSize: '13px', color: '#888', margin: '2px 0 0 0' },
-
     seccionTitulo: { fontSize: '15px', fontWeight: '700', color: '#2d2d2d', marginBottom: '14px' },
     finanzasGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '25px' },
     finanzaCard: { backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
@@ -267,7 +280,6 @@ const styles = {
     finanzaIcon: { fontSize: '18px' },
     finanzaLabel: { fontSize: '12px', color: '#888' },
     finanzaValor: { fontSize: '22px', fontWeight: 'bold', margin: 0 },
-
     tablasFila: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' },
     tablaCard: { backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
     tablaTitulo: { fontSize: '14px', fontWeight: '700', color: '#2d2d2d', margin: '0 0 15px 0' },
@@ -277,12 +289,10 @@ const styles = {
     tablaFila: { borderTop: '1px solid #f0f4f0' },
     td: { padding: '10px 12px', fontSize: '13px', color: '#333' },
     sinDatos: { textAlign: 'center', color: '#aaa', fontSize: '13px', padding: '20px 0' },
-
     stockLista: { display: 'flex', flexDirection: 'column', gap: '10px' },
     stockItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fafafa', borderRadius: '8px' },
     stockNombre: { fontSize: '13px', color: '#333' },
     stockBadge: { padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
-
     metodosLista: { display: 'flex', flexDirection: 'column', gap: '14px' },
     metodoItem: { display: 'flex', flexDirection: 'column', gap: '5px' },
     metodoTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
@@ -290,7 +300,6 @@ const styles = {
     metodoMonto: { fontSize: '13px', color: '#2e7d52', fontWeight: 'bold' },
     barraContainer: { height: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden' },
     barraFill: { height: '100%', borderRadius: '4px', transition: 'width 0.5s ease' },
-    metodoPorcentaje: { fontSize: '11px', color: '#aaa', textAlign: 'right' },
 };
 
 export default Dashboard;

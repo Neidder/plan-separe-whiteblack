@@ -148,14 +148,14 @@ class VentaViewSet(viewsets.ModelViewSet):
         inicio_semana = hoy - timedelta(days=hoy.weekday())
         inicio_mes = hoy.replace(day=1, hour=0, minute=0, second=0)
 
-        ventas_hoy = Ventas.objects.filter(fecha_venta__gte=inicio_hoy)
+        ventas = Ventas.objects.filter(fecha_venta__gte=inicio_hoy)
         ventas_semana = Ventas.objects.filter(fecha_venta__gte=inicio_semana)
         ventas_mes = Ventas.objects.filter(fecha_venta__gte=inicio_mes)
 
         return Response({
             'hoy': {
-                'cantidad': ventas_hoy.count(),
-                'total': sum(float(v.total) for v in ventas_hoy),
+                'cantidad': ventas.count(),
+                'total': sum(float(v.total) for v in ventas),
             },
             'semana': {
                 'cantidad': ventas_semana.count(),

@@ -49,24 +49,37 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 @permission_classes([AllowAny])
 def login(request):
     serializer = LoginSerializer(data=request.data)
+
     if serializer.is_valid():
         correo = serializer.validated_data['correo']
+
         contrasena = hashlib.sha256(
             serializer.validated_data['contrasena'].encode()
         ).hexdigest()
+
         try:
-            usuario = Usuarios.objects.get(correo=correo, contrasena=contrasena)
+            usuario = Usuarios.objects.get(
+                correo=correo,
+                contrasena=contrasena,
+                activo=True
+            )
+
             return Response({
                 'mensaje': 'Login exitoso',
                 'id_usuario': usuario.id_usuario,
                 'nombre': usuario.nombre,
                 'apellido': usuario.apellido,
                 'correo': usuario.correo,
-                'id_rol': usuario.id_rol_id
+                'telefono': usuario.telefono,
+                'id_rol': usuario.id_rol_id,
+                'rol': usuario.id_rol.nombre_rol,
+                'activo': usuario.activo
             }, status=status.HTTP_200_OK)
+
         except Usuarios.DoesNotExist:
             return Response(
                 {'error': 'Correo o contraseña incorrectos'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

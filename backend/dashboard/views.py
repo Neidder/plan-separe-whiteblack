@@ -1,50 +1,67 @@
+from django.db.models import Sum
+from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.utils import timezone
 from datetime import timedelta
+
+# Importación de modelos según tu archivo
 from clientes.models import Clientes
 from productos.models import Productos
 from proveedores.models import Proveedores
 from compras.models import Compras
 from planes_separe.models import PlanesSepare
 from pagos.models import Pagos
-
+from ventas.models import Ventas
 
 @api_view(['GET'])
 def resumen_dashboard(request):
-    hoy = timezone.now()
-    inicio_mes = hoy.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    hace_30_dias = hoy - timedelta(days=30)
+    # --- Tiempos de referencia ---
+    hoy_dt = timezone.now()
+    hoy_fecha = hoy_dt.date() # Solo Año-Mes-Día para comparación estricta
+    inicio_mes = hoy_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    hace_30_dias = hoy_dt - timedelta(days=30)
 
-    # ── Conteos generales ──
+    # --- Conteos Generales ---
     total_clientes = Clientes.objects.filter(activo=True).count()
     total_productos = Productos.objects.filter(activo=True).count()
     total_proveedores = Proveedores.objects.filter(activo=True).count()
-
-    # ── Planes separe ──
     planes_activos = PlanesSepare.objects.filter(estado='activo').count()
+
+    # --- CORRECCIÓN: Ventas de HOY ---
+    # Al usar __date, Django compara solo la fecha y excluye ventas de ayer o antes
+    ventas_hoy_qs = Ventas.objects.filter(fecha_venta__date=hoy_fecha)
+    total_ventas_dia = ventas_hoy_qs.aggregate(total=Sum('total'))['total'] or 0
+    cantidad_ventas_dia = ventas_hoy_qs.count()
+
+    # --- Finanzas del Mes ---
+    total_ventas_mes = Ventas.objects.filter(
+        fecha_venta__gte=inicio_mes
+    ).aggregate(total=Sum('total'))['total'] or 0
+
+    total_recaudado_mes = Pagos.objects.filter(
+        fecha_pago__gte=inicio_mes
+    ).aggregate(monto=Sum('monto'))['monto'] or 0
+
+    total_ingresos_mes = float(total_ventas_mes) + float(total_recaudado_mes)
+
+    total_compras_mes = Compras.objects.filter(
+        fecha_compra__gte=inicio_mes
+    ).aggregate(total=Sum('total'))['total'] or 0
+
+    # --- Planes Separe Adicional ---
     planes_vencidos = PlanesSepare.objects.filter(
-        estado='activo', fecha_fin__lt=hoy.date()
+        estado='activo', 
+        fecha_fin__lt=hoy_fecha
     ).count()
-    saldo_pendiente = sum(
-        float(p.saldo_restante or 0)
-        for p in PlanesSepare.objects.filter(estado='activo')
-    )
+    
+    saldo_pendiente = sum(float(p.saldo_restante or 0) for p in PlanesSepare.objects.filter(estado='activo'))
 
-    # ── Pagos del mes ──
-    pagos_mes = Pagos.objects.filter(fecha_pago__gte=inicio_mes)
-    total_recaudado_mes = sum(float(p.monto or 0) for p in pagos_mes)
-
-    # ── Compras del mes ──
-    compras_mes = Compras.objects.filter(fecha_compra__gte=inicio_mes)
-    total_compras_mes = sum(float(c.total or 0) for c in compras_mes)
-
-    # ── Productos con stock bajo (menos de 5 unidades) ──
+    # --- Productos Stock Bajo ---
     productos_stock_bajo = Productos.objects.filter(
         activo=True, stock__lt=5
     ).values('nombre', 'stock')[:5]
 
-    # ── Últimas 5 compras ──
+    # --- Listados (Top 5) ---
     ultimas_compras = []
     for c in Compras.objects.order_by('-fecha_compra')[:5]:
         ultimas_compras.append({
@@ -54,7 +71,6 @@ def resumen_dashboard(request):
             'fecha': c.fecha_compra.strftime('%d/%m/%Y') if c.fecha_compra else '—',
         })
 
-    # ── Últimos 5 pagos ──
     ultimos_pagos = []
     for p in Pagos.objects.order_by('-fecha_pago')[:5]:
         try:
@@ -70,7 +86,7 @@ def resumen_dashboard(request):
             'fecha': p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '—',
         })
 
-    # ── Pagos por método (para gráfica) ──
+    # --- Pagos por método (gráfica) ---
     metodos = {}
     for p in Pagos.objects.filter(fecha_pago__gte=hace_30_dias):
         m = p.metodo_pago or 'otro'
@@ -83,10 +99,16 @@ def resumen_dashboard(request):
             'proveedores': total_proveedores,
             'planes_activos': planes_activos,
         },
+        'ventas_hoy': {
+            'monto': float(total_ventas_dia),
+            'cantidad': cantidad_ventas_dia,
+        },
         'finanzas': {
-            'recaudado_mes': total_recaudado_mes,
-            'compras_mes': total_compras_mes,
-            'saldo_pendiente': saldo_pendiente,
+            'recaudado_mes': float(total_recaudado_mes),
+            'ventas_directas_mes': float(total_ventas_mes),
+            'ingresos_totales_mes': float(total_ingresos_mes),
+            'compras_mes': float(total_compras_mes),
+            'saldo_pendiente': float(saldo_pendiente),
             'planes_vencidos': planes_vencidos,
         },
         'productos_stock_bajo': list(productos_stock_bajo),

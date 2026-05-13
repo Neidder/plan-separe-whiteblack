@@ -1,8 +1,10 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 const Sidebar = () => {
+
     const navigate = useNavigate();
     const location = useLocation();
+
     const usuario = JSON.parse(localStorage.getItem('usuario'));
 
     const handleLogout = () => {
@@ -11,18 +13,97 @@ const Sidebar = () => {
     };
 
     const menuItems = [
-        { path: '/dashboard', icon: '🏠', label: 'Dashboard' },
-        { path: '/productos', icon: '📦', label: 'Productos' },
-        { path: '/clientes', icon: '👥', label: 'Clientes' },
-        { path: '/proveedores', icon: '🏭', label: 'Proveedores' },
-        { path: '/compras', icon: '🛒', label: 'Compras' },
-        { path: '/ventas', icon: '💵', label: 'Ventas' },
-        { path: '/planes-separe', icon: '📋', label: 'Planes Separe' },
-        { path: '/pagos', icon: '💰', label: 'Pagos' },
+
+        // DASHBOARD
+        {
+            path: '/dashboard',
+            icon: '🏠',
+            label: 'Dashboard'
+        },
+
+        // ADMINISTRADOR
+        ...(usuario?.id_rol === 1
+            ? [
+                {
+                    path: '/productos',
+                    icon: '📦',
+                    label: 'Productos'
+                },
+                {
+                    path: '/clientes',
+                    icon: '👥',
+                    label: 'Clientes'
+                },
+                {
+                    path: '/proveedores',
+                    icon: '🏭',
+                    label: 'Proveedores'
+                },
+                {
+                    path: '/compras',
+                    icon: '🛒',
+                    label: 'Compras'
+                },
+                {
+                    path: '/ventas',
+                    icon: '💵',
+                    label: 'Ventas'
+                },
+                {
+                    path: '/planes-separe',
+                    icon: '📋',
+                    label: 'Planes Separe'
+                },
+                {
+                    path: '/pagos',
+                    icon: '💰',
+                    label: 'Pagos'
+                },
+                {
+                    path: '/usuarios',
+                    icon: '👨‍💼',
+                    label: 'Usuarios'
+                }
+            ]
+            : []
+        ),
+
+        // VENDEDOR
+        ...(usuario?.id_rol === 2
+            ? [
+                {
+                    path: '/productos',
+                    icon: '📦',
+                    label: 'Productos'
+                },
+                {
+                    path: '/clientes',
+                    icon: '👥',
+                    label: 'Clientes'
+                },
+                {
+                    path: '/ventas',
+                    icon: '💵',
+                    label: 'Ventas'
+                },
+                {
+                    path: '/planes-separe',
+                    icon: '📋',
+                    label: 'Planes Separe'
+                },
+                {
+                    path: '/pagos',
+                    icon: '💰',
+                    label: 'Pagos'
+                }
+            ]
+            : []
+        ),
     ];
 
     return (
         <div style={styles.sidebar}>
+
             {/* Logo */}
             <div style={styles.logo}>
                 <span style={styles.logoIcon}>🛍️</span>
@@ -31,38 +112,62 @@ const Sidebar = () => {
 
             {/* Usuario */}
             <div style={styles.usuarioCard}>
+
                 <div style={styles.avatar}>
                     {usuario?.nombre?.charAt(0).toUpperCase()}
                 </div>
+
                 <div>
-                    <p style={styles.usuarioNombre}>{usuario?.nombre}</p>
+                    <p style={styles.usuarioNombre}>
+                        {usuario?.nombre}
+                    </p>
+
                     <p style={styles.usuarioRol}>
-                        {usuario?.id_rol === 1 ? 'Administrador' : 'Vendedor'}
+                        {usuario?.rol || 'Usuario'}
                     </p>
                 </div>
+
             </div>
 
             {/* Menu */}
             <nav style={styles.nav}>
+
                 {menuItems.map((item) => (
+
                     <Link
                         key={item.path}
                         to={item.path}
                         style={{
                             ...styles.menuItem,
-                            ...(location.pathname === item.path ? styles.menuItemActivo : {})
+                            ...(location.pathname === item.path
+                                ? styles.menuItemActivo
+                                : {}
+                            )
                         }}
                     >
-                        <span style={styles.menuIcon}>{item.icon}</span>
-                        <span>{item.label}</span>
+
+                        <span style={styles.menuIcon}>
+                            {item.icon}
+                        </span>
+
+                        <span>
+                            {item.label}
+                        </span>
+
                     </Link>
+
                 ))}
+
             </nav>
 
-            {/* Logout — siempre visible al fondo */}
-            <button onClick={handleLogout} style={styles.logout}>
+            {/* Logout */}
+            <button
+                onClick={handleLogout}
+                style={styles.logout}
+            >
                 🚪 Cerrar Sesión
             </button>
+
         </div>
     );
 };
@@ -81,22 +186,26 @@ const styles = {
         left: 0,
         boxShadow: '2px 0 15px rgba(0,0,0,0.05)',
     },
+
     logo: {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
         padding: '0 20px 25px 20px',
         borderBottom: '1px solid #e0ede6',
-        flexShrink: 0, // 👈 evita que se comprima
+        flexShrink: 0,
     },
+
     logoIcon: {
         fontSize: '28px',
     },
+
     logoText: {
         fontSize: '20px',
         fontWeight: 'bold',
         color: '#2e7d52',
     },
+
     usuarioCard: {
         display: 'flex',
         alignItems: 'center',
@@ -104,8 +213,9 @@ const styles = {
         padding: '20px',
         borderBottom: '1px solid #e0ede6',
         marginBottom: '10px',
-        flexShrink: 0, // 👈 evita que se comprima
+        flexShrink: 0,
     },
+
     avatar: {
         width: '40px',
         height: '40px',
@@ -118,23 +228,28 @@ const styles = {
         fontSize: '18px',
         fontWeight: 'bold',
     },
+
     usuarioNombre: {
         fontSize: '14px',
         fontWeight: 'bold',
         color: '#2d2d2d',
         textTransform: 'capitalize',
     },
+
     usuarioRol: {
         fontSize: '12px',
         color: '#666',
+        textTransform: 'capitalize',
     },
+
     nav: {
         display: 'flex',
         flexDirection: 'column',
-        flex: 1,           // 👈 ocupa el espacio disponible
-        overflowY: 'auto', // 👈 hace scroll si los items no caben
+        flex: 1,
+        overflowY: 'auto',
         padding: '0 10px',
     },
+
     menuItem: {
         display: 'flex',
         alignItems: 'center',
@@ -147,16 +262,19 @@ const styles = {
         marginBottom: '5px',
         transition: 'all 0.2s',
     },
+
     menuItemActivo: {
         backgroundColor: '#e8f5ee',
         color: '#2e7d52',
         fontWeight: 'bold',
     },
+
     menuIcon: {
         fontSize: '18px',
     },
+
     logout: {
-        flexShrink: 0,        // 👈 clave: nunca se comprime ni desaparece
+        flexShrink: 0,
         margin: '10px 15px',
         padding: '12px',
         backgroundColor: '#e53935',
