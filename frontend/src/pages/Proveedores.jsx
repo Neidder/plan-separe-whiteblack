@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import {
     getProveedores, crearProveedor,
@@ -13,11 +13,66 @@ const formInicial = {
     direccion: '',
 };
 
+const Modal = ({ isOpen, onClose, children }) => {
+    const overlayRef = useRef(null);
+
+    useEffect(() => {
+        const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+        if (isOpen) {
+            document.addEventListener('keydown', handleKey);
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.removeEventListener('keydown', handleKey);
+            document.body.style.overflow = '';
+        };
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div
+            ref={overlayRef}
+            onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+            style={modalStyles.overlay}
+        >
+            <div style={modalStyles.container}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const modalStyles = {
+    overlay: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+    },
+    container: {
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+        width: '100%',
+        maxWidth: '560px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        animation: 'modalIn 0.2s ease',
+    },
+};
+
 const Proveedores = () => {
     const [proveedores, setProveedores] = useState([]);
-    const [mostrarForm, setMostrarForm] = useState(false);
+    const [modalAbierto, setModalAbierto] = useState(false);
     const [proveedorEditando, setProveedorEditando] = useState(null);
     const [error, setError] = useState('');
+    const [errorModal, setErrorModal] = useState('');
     const [form, setForm] = useState(formInicial);
     const [busqueda, setBusqueda] = useState('');
     const [cargando, setCargando] = useState(false);
@@ -49,8 +104,8 @@ const Proveedores = () => {
     const handleNuevo = () => {
         setProveedorEditando(null);
         setForm(formInicial);
-        setMostrarForm(true);
-        setError('');
+        setErrorModal('');
+        setModalAbierto(true);
     };
 
     const handleEditar = (proveedor) => {
@@ -62,13 +117,18 @@ const Proveedores = () => {
             correo: proveedor.correo || '',
             direccion: proveedor.direccion || '',
         });
-        setMostrarForm(true);
-        setError('');
+        setErrorModal('');
+        setModalAbierto(true);
+    };
+
+    const handleCerrarModal = () => {
+        setModalAbierto(false);
+        setErrorModal('');
     };
 
     const handleGuardar = async () => {
         if (!form.nombre_empresa.trim()) {
-            setError('El nombre de la empresa es obligatorio');
+            setErrorModal('El nombre de la empresa es obligatorio');
             return;
         }
         try {
@@ -77,11 +137,11 @@ const Proveedores = () => {
             } else {
                 await crearProveedor({ ...form, activo: true });
             }
-            setMostrarForm(false);
+            setModalAbierto(false);
             cargarProveedores();
             setError('');
         } catch {
-            setError('Error al guardar el proveedor');
+            setErrorModal('Error al guardar el proveedor');
         }
     };
 
@@ -95,17 +155,21 @@ const Proveedores = () => {
         }
     };
 
-    // Iniciales para el avatar
     const getIniciales = (nombre) => {
         const palabras = nombre?.split(' ') || [];
-        if (palabras.length >= 2) {
-            return (palabras[0][0] + palabras[1][0]).toUpperCase();
-        }
+        if (palabras.length >= 2) return (palabras[0][0] + palabras[1][0]).toUpperCase();
         return nombre?.charAt(0).toUpperCase() || '?';
     };
 
     return (
         <div style={styles.layout}>
+            <style>{`
+                @keyframes modalIn {
+                    from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
+
             <Sidebar />
             <div style={styles.contenido}>
 
@@ -135,21 +199,48 @@ const Proveedores = () => {
 
                 {error && <p style={styles.error}>{error}</p>}
 
-                {/* Formulario */}
-                {mostrarForm && (
-                    <div style={styles.formulario}>
-                        <h3 style={styles.formTitulo}>
-                            {proveedorEditando ? '✏️ Editar Proveedor' : '➕ Nuevo Proveedor'}
-                        </h3>
+                {/* Modal crear / editar */}
+                <Modal isOpen={modalAbierto} onClose={handleCerrarModal}>
+                    <div style={styles.modalHeader}>
+                        <div>
+                            <div style={styles.modalIconRow}>
+                                <div style={styles.modalIconCircle}>
+                                    <span style={{ fontSize: '20px' }}>
+                                        {proveedorEditando ? '✏️' : '🏭'}
+                                    </span>
+                                </div>
+                                <h2 style={styles.modalTitulo}>
+                                    {proveedorEditando ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+                                </h2>
+                            </div>
+                            <p style={styles.modalSubtitulo}>
+                                {proveedorEditando
+                                    ? `Modificando "${proveedorEditando.nombre_empresa}"`
+                                    : 'Completa los datos del nuevo proveedor'}
+                            </p>
+                        </div>
+                        <button onClick={handleCerrarModal} style={styles.botonCerrar}>✕</button>
+                    </div>
+
+                    <div style={styles.modalBody}>
+                        {errorModal && (
+                            <div style={styles.errorModal}>
+                                <span>⚠️</span> {errorModal}
+                            </div>
+                        )}
+
                         <div style={styles.formGrid}>
                             <div style={{ ...styles.inputGroup, gridColumn: '1 / -1' }}>
-                                <label style={styles.label}>Nombre de la Empresa *</label>
+                                <label style={styles.label}>
+                                    Nombre de la Empresa <span style={styles.requerido}>*</span>
+                                </label>
                                 <input
                                     name="nombre_empresa"
-                                    placeholder="Ej: Proveedor Tecnología SAS"
+                                    placeholder="Ej: Textiles del Norte SAS"
                                     value={form.nombre_empresa}
                                     onChange={handleChange}
                                     style={styles.input}
+                                    autoFocus
                                 />
                             </div>
                             <div style={styles.inputGroup}>
@@ -194,16 +285,17 @@ const Proveedores = () => {
                                 />
                             </div>
                         </div>
-                        <div style={styles.formBotones}>
-                            <button onClick={handleGuardar} style={styles.botonGuardar}>
-                                💾 Guardar Proveedor
-                            </button>
-                            <button onClick={() => setMostrarForm(false)} style={styles.botonCancelar}>
-                                Cancelar
-                            </button>
-                        </div>
                     </div>
-                )}
+
+                    <div style={styles.modalFooter}>
+                        <button onClick={handleCerrarModal} style={styles.botonCancelar}>
+                            Cancelar
+                        </button>
+                        <button onClick={handleGuardar} style={styles.botonGuardar}>
+                            {proveedorEditando ? '💾 Guardar cambios' : '✅ Crear Proveedor'}
+                        </button>
+                    </div>
+                </Modal>
 
                 {/* Lista */}
                 {cargando ? (
@@ -217,17 +309,13 @@ const Proveedores = () => {
                     <div style={styles.grid}>
                         {proveedoresFiltrados.map((p) => (
                             <div key={p.id_proveedor} style={styles.card}>
-
-                                {/* Top de la card */}
                                 <div style={styles.cardTop}>
                                     <div style={styles.avatar}>
                                         {getIniciales(p.nombre_empresa)}
                                     </div>
                                     <div style={styles.cardTitleBlock}>
                                         <p style={styles.empresa}>{p.nombre_empresa}</p>
-                                        {p.contacto && (
-                                            <p style={styles.contacto}>👤 {p.contacto}</p>
-                                        )}
+                                        {p.contacto && <p style={styles.contacto}>👤 {p.contacto}</p>}
                                     </div>
                                     <span style={{
                                         ...styles.badge,
@@ -238,32 +326,20 @@ const Proveedores = () => {
                                     </span>
                                 </div>
 
-                                {/* Info de contacto */}
                                 <div style={styles.cardInfo}>
-                                    {p.telefono && (
-                                        <p style={styles.infoItem}>📞 {p.telefono}</p>
-                                    )}
-                                    {p.correo && (
-                                        <p style={styles.infoItem}>✉️ {p.correo}</p>
-                                    )}
-                                    {p.direccion && (
-                                        <p style={styles.infoItem}>📍 {p.direccion}</p>
-                                    )}
+                                    {p.telefono && <p style={styles.infoItem}>📞 {p.telefono}</p>}
+                                    {p.correo && <p style={styles.infoItem}>✉️ {p.correo}</p>}
+                                    {p.direccion && <p style={styles.infoItem}>📍 {p.direccion}</p>}
                                 </div>
 
-                                {/* Fecha registro */}
                                 {p.fecha_registro && (
                                     <p style={styles.fechaRegistro}>
                                         Desde: {new Date(p.fecha_registro).toLocaleDateString('es-CO')}
                                     </p>
                                 )}
 
-                                {/* Acciones */}
                                 <div style={styles.cardAcciones}>
-                                    <button
-                                        onClick={() => handleEditar(p)}
-                                        style={styles.botonEditar}
-                                    >
+                                    <button onClick={() => handleEditar(p)} style={styles.botonEditar}>
                                         ✏️ Editar
                                     </button>
                                     <button
@@ -273,12 +349,10 @@ const Proveedores = () => {
                                         🗑️ Eliminar
                                     </button>
                                 </div>
-
                             </div>
                         ))}
                     </div>
                 )}
-
             </div>
         </div>
     );
@@ -298,34 +372,42 @@ const styles = {
 
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
 
-    formulario: { backgroundColor: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 15px rgba(0,0,0,0.06)' },
-    formTitulo: { color: '#2e7d52', marginBottom: '20px', marginTop: 0 },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' },
-    inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-    label: { fontSize: '13px', color: '#555', fontWeight: '600' },
-    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none' },
-    formBotones: { display: 'flex', gap: '10px' },
-    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' },
+    // Modal interior
+    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px 28px 0 28px' },
+    modalIconRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' },
+    modalIconCircle: { width: '42px', height: '42px', borderRadius: '12px', backgroundColor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    modalTitulo: { fontSize: '20px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
+    modalSubtitulo: { fontSize: '13px', color: '#888', margin: '2px 0 0 54px' },
+    botonCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', lineHeight: 1, flexShrink: 0 },
 
+    modalBody: { padding: '20px 28px' },
+    errorModal: { display: 'flex', gap: '8px', alignItems: 'center', color: '#e53935', backgroundColor: '#fdecea', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' },
+
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+    inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
+    label: { fontSize: '13px', color: '#555', fontWeight: '600' },
+    requerido: { color: '#e53935' },
+    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', backgroundColor: '#fafffe' },
+
+    modalFooter: { display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '16px 28px 24px 28px', borderTop: '1px solid #f0f0f0' },
+    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1.5px solid #ddd', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' },
+
+    // Cards
     grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' },
     card: { backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '12px' },
-
     cardTop: { display: 'flex', alignItems: 'center', gap: '12px' },
     avatar: { width: '46px', height: '46px', borderRadius: '10px', backgroundColor: '#1565c0', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold', flexShrink: 0 },
     cardTitleBlock: { flex: 1 },
     empresa: { fontSize: '14px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
     contacto: { fontSize: '12px', color: '#888', margin: '2px 0 0 0' },
     badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', flexShrink: 0 },
-
     cardInfo: { display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #f0f4f0', paddingTop: '12px' },
     infoItem: { fontSize: '13px', color: '#555', margin: 0 },
     fechaRegistro: { fontSize: '11px', color: '#aaa', margin: 0 },
-
     cardAcciones: { display: 'flex', gap: '8px', borderTop: '1px solid #f0f4f0', paddingTop: '12px' },
     botonEditar: { flex: 1, backgroundColor: '#e8f5ee', color: '#2e7d52', border: 'none', padding: '7px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     botonEliminar: { flex: 1, backgroundColor: '#fdecea', color: '#e53935', border: 'none', padding: '7px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
-
     sinDatos: { backgroundColor: 'white', borderRadius: '12px', padding: '50px', textAlign: 'center', color: '#999' },
 };
 

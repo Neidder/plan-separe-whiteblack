@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import {
     getClientes, crearCliente,
@@ -14,11 +14,66 @@ const formInicial = {
     direccion: '',
 };
 
+const Modal = ({ isOpen, onClose, children }) => {
+    const overlayRef = useRef(null);
+
+    useEffect(() => {
+        const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+        if (isOpen) {
+            document.addEventListener('keydown', handleKey);
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.removeEventListener('keydown', handleKey);
+            document.body.style.overflow = '';
+        };
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div
+            ref={overlayRef}
+            onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+            style={modalStyles.overlay}
+        >
+            <div style={modalStyles.container}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const modalStyles = {
+    overlay: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+    },
+    container: {
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+        width: '100%',
+        maxWidth: '560px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        animation: 'modalIn 0.2s ease',
+    },
+};
+
 const Clientes = () => {
     const [clientes, setClientes] = useState([]);
-    const [mostrarForm, setMostrarForm] = useState(false);
+    const [modalAbierto, setModalAbierto] = useState(false);
     const [clienteEditando, setClienteEditando] = useState(null);
     const [error, setError] = useState('');
+    const [errorModal, setErrorModal] = useState('');
     const [form, setForm] = useState(formInicial);
     const [busqueda, setBusqueda] = useState('');
     const [cargando, setCargando] = useState(false);
@@ -59,8 +114,8 @@ const Clientes = () => {
     const handleNuevo = () => {
         setClienteEditando(null);
         setForm(formInicial);
-        setMostrarForm(true);
-        setError('');
+        setErrorModal('');
+        setModalAbierto(true);
     };
 
     const handleEditar = (cliente) => {
@@ -73,13 +128,18 @@ const Clientes = () => {
             correo: cliente.correo || '',
             direccion: cliente.direccion || '',
         });
-        setMostrarForm(true);
-        setError('');
+        setErrorModal('');
+        setModalAbierto(true);
+    };
+
+    const handleCerrarModal = () => {
+        setModalAbierto(false);
+        setErrorModal('');
     };
 
     const handleGuardar = async () => {
         if (!form.nombre.trim()) {
-            setError('El nombre es obligatorio');
+            setErrorModal('El nombre es obligatorio');
             return;
         }
         try {
@@ -88,14 +148,14 @@ const Clientes = () => {
             } else {
                 await crearCliente(form);
             }
-            setMostrarForm(false);
+            setModalAbierto(false);
             cargarClientes();
             setError('');
         } catch (err) {
             const msg = err.response?.data?.documento?.[0]
                 || err.response?.data?.telefono?.[0]
                 || 'Error al guardar el cliente';
-            setError(msg);
+            setErrorModal(msg);
         }
     };
 
@@ -109,11 +169,17 @@ const Clientes = () => {
         }
     };
 
-    // Inicial del nombre para el avatar
     const getInicial = (nombre) => nombre?.charAt(0).toUpperCase() || '?';
 
     return (
         <div style={styles.layout}>
+            <style>{`
+                @keyframes modalIn {
+                    from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
+
             <Sidebar />
             <div style={styles.contenido}>
 
@@ -143,28 +209,56 @@ const Clientes = () => {
 
                 {error && <p style={styles.error}>{error}</p>}
 
-                {/* Formulario */}
-                {mostrarForm && (
-                    <div style={styles.formulario}>
-                        <h3 style={styles.formTitulo}>
-                            {clienteEditando ? '✏️ Editar Cliente' : '➕ Nuevo Cliente'}
-                        </h3>
+                {/* Modal para crear / editar */}
+                <Modal isOpen={modalAbierto} onClose={handleCerrarModal}>
+                    <div style={styles.modalHeader}>
+                        <div>
+                            <div style={styles.modalIconRow}>
+                                <div style={styles.modalIconCircle}>
+                                    {clienteEditando
+                                        ? <span style={{ fontSize: '20px' }}>✏️</span>
+                                        : <span style={{ fontSize: '20px' }}>👤</span>
+                                    }
+                                </div>
+                                <h2 style={styles.modalTitulo}>
+                                    {clienteEditando ? 'Editar Cliente' : 'Nuevo Cliente'}
+                                </h2>
+                            </div>
+                            <p style={styles.modalSubtitulo}>
+                                {clienteEditando
+                                    ? `Modificando a ${clienteEditando.nombre} ${clienteEditando.apellido || ''}`
+                                    : 'Completa los datos del nuevo cliente'}
+                            </p>
+                        </div>
+                        <button onClick={handleCerrarModal} style={styles.botonCerrar}>✕</button>
+                    </div>
+
+                    <div style={styles.modalBody}>
+                        {errorModal && (
+                            <div style={styles.errorModal}>
+                                <span>⚠️</span> {errorModal}
+                            </div>
+                        )}
+
                         <div style={styles.formGrid}>
                             <div style={styles.inputGroup}>
-                                <label style={styles.label}>Nombre *</label>
+                                <label style={styles.label}>
+                                    Nombre <span style={styles.requerido}>*</span>
+                                </label>
                                 <input
                                     name="nombre"
-                                    placeholder=""
+                                    placeholder="Ej: María"
                                     value={form.nombre}
                                     onChange={handleChange}
                                     style={styles.input}
+                                    autoFocus
                                 />
                             </div>
                             <div style={styles.inputGroup}>
                                 <label style={styles.label}>Apellido</label>
                                 <input
                                     name="apellido"
-                                    placeholder=" "
+                                    placeholder="Ej: González"
                                     value={form.apellido}
                                     onChange={handleChange}
                                     style={styles.input}
@@ -174,7 +268,7 @@ const Clientes = () => {
                                 <label style={styles.label}>Documento</label>
                                 <input
                                     name="documento"
-                                    placeholder=" "
+                                    placeholder="Ej: 1023456789"
                                     value={form.documento}
                                     onChange={handleChange}
                                     style={styles.input}
@@ -184,44 +278,45 @@ const Clientes = () => {
                                 <label style={styles.label}>Teléfono</label>
                                 <input
                                     name="telefono"
-                                    placeholder=""
+                                    placeholder="Ej: 3001234567"
                                     value={form.telefono}
                                     onChange={handleChange}
                                     style={styles.input}
                                 />
                             </div>
-                            <div style={styles.inputGroup}>
-                                <label style={styles.label}>Correo</label>
+                            <div style={{ ...styles.inputGroup, gridColumn: '1 / -1' }}>
+                                <label style={styles.label}>Correo electrónico</label>
                                 <input
                                     name="correo"
-                                    placeholder=""
+                                    placeholder="Ej: maria@correo.com"
                                     type="email"
                                     value={form.correo}
                                     onChange={handleChange}
                                     style={styles.input}
                                 />
                             </div>
-                            <div style={styles.inputGroup}>
+                            <div style={{ ...styles.inputGroup, gridColumn: '1 / -1' }}>
                                 <label style={styles.label}>Dirección</label>
                                 <input
                                     name="direccion"
-                                    placeholder=""
+                                    placeholder="Ej: Calle 10 # 5-20, Bogotá"
                                     value={form.direccion}
                                     onChange={handleChange}
                                     style={styles.input}
                                 />
                             </div>
                         </div>
-                        <div style={styles.formBotones}>
-                            <button onClick={handleGuardar} style={styles.botonGuardar}>
-                                💾 Guardar Cliente
-                            </button>
-                            <button onClick={() => setMostrarForm(false)} style={styles.botonCancelar}>
-                                Cancelar
-                            </button>
-                        </div>
                     </div>
-                )}
+
+                    <div style={styles.modalFooter}>
+                        <button onClick={handleCerrarModal} style={styles.botonCancelar}>
+                            Cancelar
+                        </button>
+                        <button onClick={handleGuardar} style={styles.botonGuardar}>
+                            {clienteEditando ? '💾 Guardar cambios' : '✅ Crear Cliente'}
+                        </button>
+                    </div>
+                </Modal>
 
                 {/* Lista de clientes */}
                 {cargando ? (
@@ -235,8 +330,6 @@ const Clientes = () => {
                     <div style={styles.grid}>
                         {clientes.map((c) => (
                             <div key={c.id_cliente} style={styles.clienteCard}>
-
-                                {/* Avatar + nombre */}
                                 <div style={styles.cardTop}>
                                     <div style={styles.avatar}>
                                         {getInicial(c.nombre)}
@@ -246,9 +339,7 @@ const Clientes = () => {
                                             {c.nombre} {c.apellido || ''}
                                         </p>
                                         {c.documento && (
-                                            <p style={styles.clienteDoc}>
-                                                🪪 {c.documento}
-                                            </p>
+                                            <p style={styles.clienteDoc}>🪪 {c.documento}</p>
                                         )}
                                     </div>
                                     <span style={{
@@ -260,32 +351,20 @@ const Clientes = () => {
                                     </span>
                                 </div>
 
-                                {/* Info de contacto */}
                                 <div style={styles.cardInfo}>
-                                    {c.telefono && (
-                                        <p style={styles.infoItem}>📞 {c.telefono}</p>
-                                    )}
-                                    {c.correo && (
-                                        <p style={styles.infoItem}>✉️ {c.correo}</p>
-                                    )}
-                                    {c.direccion && (
-                                        <p style={styles.infoItem}>📍 {c.direccion}</p>
-                                    )}
+                                    {c.telefono && <p style={styles.infoItem}>📞 {c.telefono}</p>}
+                                    {c.correo && <p style={styles.infoItem}>✉️ {c.correo}</p>}
+                                    {c.direccion && <p style={styles.infoItem}>📍 {c.direccion}</p>}
                                 </div>
 
-                                {/* Fecha de registro */}
                                 {c.fecha_registro && (
                                     <p style={styles.fechaRegistro}>
                                         Cliente desde: {new Date(c.fecha_registro).toLocaleDateString('es-CO')}
                                     </p>
                                 )}
 
-                                {/* Acciones */}
                                 <div style={styles.cardAcciones}>
-                                    <button
-                                        onClick={() => handleEditar(c)}
-                                        style={styles.botonEditar}
-                                    >
+                                    <button onClick={() => handleEditar(c)} style={styles.botonEditar}>
                                         ✏️ Editar
                                     </button>
                                     <button
@@ -295,12 +374,10 @@ const Clientes = () => {
                                         🗑️ Eliminar
                                     </button>
                                 </div>
-
                             </div>
                         ))}
                     </div>
                 )}
-
             </div>
         </div>
     );
@@ -320,30 +397,39 @@ const styles = {
 
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
 
-    formulario: { backgroundColor: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 15px rgba(0,0,0,0.06)' },
-    formTitulo: { color: '#2e7d52', marginBottom: '20px', marginTop: 0 },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' },
-    inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-    label: { fontSize: '13px', color: '#555', fontWeight: '600' },
-    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none' },
-    formBotones: { display: 'flex', gap: '10px' },
-    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' },
+    // Modal interior
+    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px 28px 0 28px' },
+    modalIconRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' },
+    modalIconCircle: { width: '42px', height: '42px', borderRadius: '12px', backgroundColor: '#e8f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    modalTitulo: { fontSize: '20px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
+    modalSubtitulo: { fontSize: '13px', color: '#888', margin: '2px 0 0 54px' },
+    botonCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', lineHeight: 1, flexShrink: 0 },
 
+    modalBody: { padding: '20px 28px' },
+    errorModal: { display: 'flex', gap: '8px', alignItems: 'center', color: '#e53935', backgroundColor: '#fdecea', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' },
+
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+    inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
+    label: { fontSize: '13px', color: '#555', fontWeight: '600' },
+    requerido: { color: '#e53935' },
+    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', transition: 'border-color 0.15s', backgroundColor: '#fafffe' },
+
+    modalFooter: { display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '16px 28px 24px 28px', borderTop: '1px solid #f0f0f0' },
+    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1.5px solid #ddd', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' },
+
+    // Cards
     grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' },
     clienteCard: { backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '12px' },
-
     cardTop: { display: 'flex', alignItems: 'center', gap: '12px' },
     avatar: { width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#2e7d52', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold', flexShrink: 0 },
     clienteNombreBlock: { flex: 1 },
     clienteNombre: { fontSize: '15px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
     clienteDoc: { fontSize: '12px', color: '#888', margin: '2px 0 0 0' },
     badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', flexShrink: 0 },
-
     cardInfo: { display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #f0f4f0', paddingTop: '12px' },
     infoItem: { fontSize: '13px', color: '#555', margin: 0 },
     fechaRegistro: { fontSize: '11px', color: '#aaa', margin: 0 },
-
     cardAcciones: { display: 'flex', gap: '8px', borderTop: '1px solid #f0f4f0', paddingTop: '12px' },
     botonEditar: { flex: 1, backgroundColor: '#e8f5ee', color: '#2e7d52', border: 'none', padding: '7px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
     botonEliminar: { flex: 1, backgroundColor: '#fdecea', color: '#e53935', border: 'none', padding: '7px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },

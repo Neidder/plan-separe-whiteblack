@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import { getPagos, crearPago, getPagosPorPlan } from '../api/pagos';
 import { getPlanes } from '../api/planesSepare';
@@ -13,7 +13,6 @@ const METODO_ICONS = {
     tarjeta: '💳',
 };
 
-// Estados con sus colores — igual que PlanesSepare
 const ESTADOS = {
     activo:    { color: '#1565c0', bg: '#e3f2fd', label: 'Activo' },
     pagado:    { color: '#2e7d52', bg: '#e8f5ee', label: 'Pagado' },
@@ -27,20 +26,75 @@ const formInicial = {
     metodo_pago: 'efectivo',
 };
 
-// Igual que PlanesSepare: un plan es vencido si está activo y su fecha_fin ya pasó
 const esVencido = (plan) =>
     plan.estado === 'activo' && new Date(plan.fecha_fin) < new Date();
 
 const getEstadoPlan = (plan) => (esVencido(plan) ? 'vencido' : plan.estado);
+
+/* ─── Modal (igual que Ventas) ─── */
+const Modal = ({ isOpen, onClose, children }) => {
+    const overlayRef = useRef(null);
+
+    useEffect(() => {
+        const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+        if (isOpen) {
+            document.addEventListener('keydown', handleKey);
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.removeEventListener('keydown', handleKey);
+            document.body.style.overflow = '';
+        };
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div
+            ref={overlayRef}
+            onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+            style={modalStyles.overlay}
+        >
+            <div style={modalStyles.container}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const modalStyles = {
+    overlay: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+    },
+    container: {
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+        width: '100%',
+        maxWidth: '660px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        animation: 'modalIn 0.2s ease',
+    },
+};
 
 const Pagos = () => {
     const [pagos, setPagos] = useState([]);
     const [planes, setPlanes] = useState([]);
     const [clientes, setClientes] = useState([]);
     const [productos, setProductos] = useState([]);
-    const [mostrarForm, setMostrarForm] = useState(false);
+    const [modalAbierto, setModalAbierto] = useState(false);
     const [form, setForm] = useState(formInicial);
     const [error, setError] = useState('');
+    const [errorModal, setErrorModal] = useState('');
     const [exito, setExito] = useState('');
     const [cargando, setCargando] = useState(false);
     const [expandido, setExpandido] = useState(null);
@@ -80,17 +134,29 @@ const Pagos = () => {
         p => p.id_plan_separe === parseInt(form.id_plan_separe)
     );
 
+    const handleNuevo = () => {
+        setForm(formInicial);
+        setErrorModal('');
+        setModalAbierto(true);
+    };
+
+    const handleCerrarModal = () => {
+        setModalAbierto(false);
+        setForm(formInicial);
+        setErrorModal('');
+    };
+
     const handleGuardar = async () => {
         if (!form.id_plan_separe || !form.monto || !form.metodo_pago) {
-            setError('Todos los campos son obligatorios');
+            setErrorModal('Todos los campos son obligatorios');
             return;
         }
         if (parseFloat(form.monto) <= 0) {
-            setError('El monto debe ser mayor a 0');
+            setErrorModal('El monto debe ser mayor a 0');
             return;
         }
         if (planSeleccionado && parseFloat(form.monto) > parseFloat(planSeleccionado.saldo_restante)) {
-            setError(`El monto no puede superar el saldo restante de $${Number(planSeleccionado.saldo_restante).toLocaleString()}`);
+            setErrorModal(`El monto no puede superar el saldo restante de $${Number(planSeleccionado.saldo_restante).toLocaleString()}`);
             return;
         }
         try {
@@ -101,14 +167,14 @@ const Pagos = () => {
                 registrado_por: usuario?.id_usuario || usuario?.id,
             });
             setExito(`✅ Pago registrado. Saldo restante: $${Number(res.saldo_restante).toLocaleString()}`);
-            setMostrarForm(false);
+            setModalAbierto(false);
             setForm(formInicial);
             setError('');
             cargarTodo();
             setTimeout(() => setExito(''), 5000);
         } catch (err) {
             const msg = err.response?.data?.error || 'Error al registrar el pago';
-            setError(msg);
+            setErrorModal(msg);
         }
     };
 
@@ -152,7 +218,6 @@ const Pagos = () => {
         return '—';
     };
 
-    // Filtros
     const pagosFiltrados = pagos.filter(p => {
         const matchMetodo = filtroMetodo === 'todos' || p.metodo_pago === filtroMetodo;
         const cliente = getNombreCliente(p.id_plan_separe).toLowerCase();
@@ -164,26 +229,29 @@ const Pagos = () => {
         return matchMetodo && matchBusqueda;
     });
 
-    // Solo planes con saldo pendiente para registrar pagos
-    // Un plan vencido sigue pudiendo recibir pagos (tiene saldo)
     const planesConSaldo = planes.filter(p =>
         (p.estado === 'activo') && parseFloat(p.saldo_restante) > 0
     );
 
-    // Resumen
     const totalRecaudado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
     const pagoHoy = pagos.filter(p => {
         const hoy = new Date().toDateString();
         return new Date(p.fecha_pago).toDateString() === hoy;
     }).reduce((s, p) => s + parseFloat(p.monto || 0), 0);
 
-    // Planes pendientes = activos con saldo (incluyendo vencidos que aún deben)
     const planesPendientes = planes.filter(p =>
         p.estado === 'activo' && parseFloat(p.saldo_restante) > 0
     ).length;
 
     return (
         <div style={styles.layout}>
+            <style>{`
+                @keyframes modalIn {
+                    from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
+
             <Sidebar />
             <div style={styles.contenido}>
 
@@ -195,7 +263,7 @@ const Pagos = () => {
                             {pagos.length} pago{pagos.length !== 1 ? 's' : ''} registrado{pagos.length !== 1 ? 's' : ''}
                         </p>
                     </div>
-                    <button onClick={() => { setMostrarForm(true); setError(''); setExito(''); }} style={styles.botonNuevo}>
+                    <button onClick={handleNuevo} style={styles.botonNuevo}>
                         + Registrar Pago
                     </button>
                 </div>
@@ -251,12 +319,32 @@ const Pagos = () => {
                 {exito && <p style={styles.exito}>{exito}</p>}
                 {error && <p style={styles.error}>{error}</p>}
 
-                {/* Formulario */}
-                {mostrarForm && (
-                    <div style={styles.formulario}>
-                        <h3 style={styles.formTitulo}>💰 Registrar Pago</h3>
+                {/* ─── MODAL ─── */}
+                <Modal isOpen={modalAbierto} onClose={handleCerrarModal}>
+                    {/* Header */}
+                    <div style={styles.modalHeader}>
+                        <div>
+                            <div style={styles.modalIconRow}>
+                                <div style={styles.modalIconCircle}>
+                                    <span style={{ fontSize: '20px' }}>💰</span>
+                                </div>
+                                <h2 style={styles.modalTitulo}>Registrar Pago</h2>
+                            </div>
+                            <p style={styles.modalSubtitulo}>Completa los datos del pago</p>
+                        </div>
+                        <button onClick={handleCerrarModal} style={styles.botonCerrar}>✕</button>
+                    </div>
+
+                    {/* Body */}
+                    <div style={styles.modalBody}>
+                        {errorModal && (
+                            <div style={styles.errorModal}>
+                                <span>⚠️</span> {errorModal}
+                            </div>
+                        )}
+
                         <div style={styles.formGrid}>
-                            <div style={styles.inputGroup}>
+                            <div style={{ ...styles.inputGroup, gridColumn: '1 / -1' }}>
                                 <label style={styles.label}>Plan Separe *</label>
                                 <select
                                     name="id_plan_separe"
@@ -268,7 +356,6 @@ const Pagos = () => {
                                     {planesConSaldo.map(p => {
                                         const cliente = clientes.find(c => c.id_cliente === p.id_cliente);
                                         const estado = getEstadoPlan(p);
-                                        const estadoCfg = ESTADOS[estado] || ESTADOS.activo;
                                         return (
                                             <option key={p.id_plan_separe} value={p.id_plan_separe}>
                                                 Plan #{p.id_plan_separe} — {cliente?.nombre || 'Cliente'} — Saldo: ${Number(p.saldo_restante).toLocaleString()} {estado === 'vencido' ? '⚠️ VENCIDO' : ''}
@@ -280,18 +367,22 @@ const Pagos = () => {
 
                             <div style={styles.inputGroup}>
                                 <label style={styles.label}>Método de Pago *</label>
-                                <select
-                                    name="metodo_pago"
-                                    value={form.metodo_pago}
-                                    onChange={handleChange}
-                                    style={styles.select}
-                                >
+                                <div style={styles.metodosRow}>
                                     {METODOS.map(m => (
-                                        <option key={m} value={m}>
+                                        <button
+                                            key={m}
+                                            onClick={() => setForm({ ...form, metodo_pago: m })}
+                                            style={{
+                                                ...styles.metodoBtn,
+                                                backgroundColor: form.metodo_pago === m ? '#2e7d52' : 'white',
+                                                color: form.metodo_pago === m ? 'white' : '#555',
+                                                border: `2px solid ${form.metodo_pago === m ? '#2e7d52' : '#e0ede6'}`,
+                                            }}
+                                        >
                                             {METODO_ICONS[m]} {m.charAt(0).toUpperCase() + m.slice(1)}
-                                        </option>
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
                             <div style={styles.inputGroup}>
@@ -306,66 +397,82 @@ const Pagos = () => {
                                     style={styles.input}
                                 />
                             </div>
+                        </div>
 
-                            {/* Info del plan seleccionado */}
-                            {planSeleccionado && (() => {
-                                const estadoPlan = getEstadoPlan(planSeleccionado);
-                                const cfgEstado = ESTADOS[estadoPlan] || ESTADOS.activo;
-                                return (
-                                    <div style={styles.infoplanBox}>
-                                        <div style={styles.infoPlanHeader}>
-                                            <p style={styles.infoPlanTitulo}>📋 Info del plan</p>
-                                            <span style={{
-                                                ...styles.estadoBadge,
-                                                backgroundColor: cfgEstado.bg,
-                                                color: cfgEstado.color,
-                                            }}>
-                                                {cfgEstado.label}
-                                            </span>
-                                        </div>
-                                        {estadoPlan === 'vencido' && (
-                                            <div style={styles.alertaVencido}>
-                                                ⚠️ Este plan venció el {new Date(planSeleccionado.fecha_fin + 'T00:00:00').toLocaleDateString('es-CO')}. Aún puedes registrar el pago.
-                                            </div>
-                                        )}
-                                        <div style={styles.infoPlanGrid}>
-                                            <span style={styles.infoPlanLabel}>Total:</span>
-                                            <span style={styles.infoPlanValor}>${Number(planSeleccionado.valor_total).toLocaleString()}</span>
-                                            <span style={styles.infoPlanLabel}>Pagado:</span>
-                                            <span style={{ ...styles.infoPlanValor, color: '#2e7d52' }}>
-                                                ${(Number(planSeleccionado.valor_total) - Number(planSeleccionado.saldo_restante)).toLocaleString()}
-                                            </span>
-                                            <span style={styles.infoPlanLabel}>Saldo:</span>
-                                            <span style={{ ...styles.infoPlanValor, color: '#e65100', fontWeight: 'bold' }}>
-                                                ${Number(planSeleccionado.saldo_restante).toLocaleString()}
-                                            </span>
-                                            <span style={styles.infoPlanLabel}>Vence:</span>
-                                            <span style={{
-                                                ...styles.infoPlanValor,
-                                                color: estadoPlan === 'vencido' ? '#e65100' : '#333',
-                                                fontWeight: estadoPlan === 'vencido' ? 'bold' : 'normal',
-                                            }}>
-                                                {planSeleccionado.fecha_fin
-                                                    ? new Date(planSeleccionado.fecha_fin + 'T00:00:00').toLocaleDateString('es-CO')
-                                                    : '—'}
-                                                {estadoPlan === 'vencido' ? ' ⚠️' : ''}
-                                            </span>
-                                        </div>
+                        {/* Info del plan seleccionado */}
+                        {planSeleccionado && (() => {
+                            const estadoPlan = getEstadoPlan(planSeleccionado);
+                            const cfgEstado = ESTADOS[estadoPlan] || ESTADOS.activo;
+                            return (
+                                <div style={styles.infoplanBox}>
+                                    <div style={styles.infoPlanHeader}>
+                                        <p style={styles.infoPlanTitulo}>📋 Info del plan</p>
+                                        <span style={{
+                                            ...styles.estadoBadge,
+                                            backgroundColor: cfgEstado.bg,
+                                            color: cfgEstado.color,
+                                        }}>
+                                            {cfgEstado.label}
+                                        </span>
                                     </div>
-                                );
-                            })()}
-                        </div>
+                                    {estadoPlan === 'vencido' && (
+                                        <div style={styles.alertaVencido}>
+                                            ⚠️ Este plan venció el {new Date(planSeleccionado.fecha_fin + 'T00:00:00').toLocaleDateString('es-CO')}. Aún puedes registrar el pago.
+                                        </div>
+                                    )}
+                                    <div style={styles.infoPlanGrid}>
+                                        <span style={styles.infoPlanLabel}>Total:</span>
+                                        <span style={styles.infoPlanValor}>${Number(planSeleccionado.valor_total).toLocaleString()}</span>
+                                        <span style={styles.infoPlanLabel}>Pagado:</span>
+                                        <span style={{ ...styles.infoPlanValor, color: '#2e7d52' }}>
+                                            ${(Number(planSeleccionado.valor_total) - Number(planSeleccionado.saldo_restante)).toLocaleString()}
+                                        </span>
+                                        <span style={styles.infoPlanLabel}>Saldo:</span>
+                                        <span style={{ ...styles.infoPlanValor, color: '#e65100', fontWeight: 'bold' }}>
+                                            ${Number(planSeleccionado.saldo_restante).toLocaleString()}
+                                        </span>
+                                        <span style={styles.infoPlanLabel}>Vence:</span>
+                                        <span style={{
+                                            ...styles.infoPlanValor,
+                                            color: estadoPlan === 'vencido' ? '#e65100' : '#333',
+                                            fontWeight: estadoPlan === 'vencido' ? 'bold' : 'normal',
+                                        }}>
+                                            {planSeleccionado.fecha_fin
+                                                ? new Date(planSeleccionado.fecha_fin + 'T00:00:00').toLocaleDateString('es-CO')
+                                                : '—'}
+                                            {estadoPlan === 'vencido' ? ' ⚠️' : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
-                        <div style={styles.formBotones}>
-                            <button onClick={handleGuardar} style={styles.botonGuardar}>
-                                💾 Registrar Pago
-                            </button>
-                            <button onClick={() => { setMostrarForm(false); setForm(formInicial); }} style={styles.botonCancelar}>
-                                Cancelar
-                            </button>
-                        </div>
+                        {/* Total box */}
+                        {form.monto && parseFloat(form.monto) > 0 && (
+                            <div style={styles.totalBox}>
+                                <div>
+                                    <p style={styles.totalLabel}>MONTO A PAGAR</p>
+                                    <p style={styles.totalMetodo}>
+                                        {METODO_ICONS[form.metodo_pago]} Pago en {form.metodo_pago}
+                                    </p>
+                                </div>
+                                <span style={styles.totalValor}>
+                                    ${Number(parseFloat(form.monto)).toLocaleString()}
+                                </span>
+                            </div>
+                        )}
                     </div>
-                )}
+
+                    {/* Footer */}
+                    <div style={styles.modalFooter}>
+                        <button onClick={handleCerrarModal} style={styles.botonCancelar}>
+                            Cancelar
+                        </button>
+                        <button onClick={handleGuardar} style={styles.botonGuardar}>
+                            💾 Registrar Pago
+                        </button>
+                    </div>
+                </Modal>
 
                 {/* Lista de pagos */}
                 {cargando ? (
@@ -379,7 +486,6 @@ const Pagos = () => {
                     <div style={styles.lista}>
                         {pagosFiltrados.map((pago) => {
                             const detalle = detallesPlan[pago.id_plan_separe];
-                            // Obtener el plan para calcular estado real
                             const planDelPago = planes.find(p => p.id_plan_separe === pago.id_plan_separe);
                             const estadoReal = planDelPago ? getEstadoPlan(planDelPago) : null;
                             const cfgEstado = estadoReal ? (ESTADOS[estadoReal] || ESTADOS.activo) : null;
@@ -387,8 +493,6 @@ const Pagos = () => {
                             return (
                                 <div key={pago.id_pago} style={styles.pagoCard}>
                                     <div style={styles.pagoFila}>
-
-                                        {/* Ícono método */}
                                         <div style={styles.metodoBadge}>
                                             <span style={styles.metodoIcon}>
                                                 {METODO_ICONS[pago.metodo_pago] || '💰'}
@@ -398,7 +502,6 @@ const Pagos = () => {
                                             </span>
                                         </div>
 
-                                        {/* Info del pago */}
                                         <div style={styles.pagoInfo}>
                                             <div style={styles.pagoIdRow}>
                                                 <p style={styles.pagoId}>Pago #{pago.id_pago}</p>
@@ -428,12 +531,10 @@ const Pagos = () => {
                                             </p>
                                         </div>
 
-                                        {/* Monto */}
                                         <div style={styles.pagoMonto}>
                                             ${Number(pago.monto).toLocaleString()}
                                         </div>
 
-                                        {/* Ver plan */}
                                         <button
                                             onClick={() => handleVerPlan(pago.id_plan_separe)}
                                             style={styles.botonVerPlan}
@@ -442,9 +543,7 @@ const Pagos = () => {
                                         </button>
                                     </div>
 
-                                    {/* Detalles del plan expandido */}
                                     {expandido === pago.id_plan_separe && detalle && (() => {
-                                        // Calcular estado real desde los datos del detalle
                                         const estadoDetalle = detalle.plan?.estado === 'activo' && detalle.plan?.fecha_fin
                                             && new Date(detalle.plan.fecha_fin) < new Date()
                                             ? 'vencido'
@@ -484,14 +583,12 @@ const Pagos = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Alerta si vencido con saldo */}
                                                 {estadoDetalle === 'vencido' && detalle.plan?.saldo_restante > 0 && (
                                                     <div style={styles.alertaVencidoDetalle}>
-                                                         Plan vencido con saldo pendiente de ${Number(detalle.plan.saldo_restante).toLocaleString()}
+                                                        Plan vencido con saldo pendiente de ${Number(detalle.plan.saldo_restante).toLocaleString()}
                                                     </div>
                                                 )}
 
-                                                {/* Historial de pagos del plan */}
                                                 <p style={styles.historialTitulo}>Historial de pagos</p>
                                                 <table style={styles.tablaHistorial}>
                                                     <thead>
@@ -557,18 +654,31 @@ const styles = {
     exito: { color: '#2e7d52', backgroundColor: '#e8f5ee', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
 
-    formulario: { backgroundColor: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 15px rgba(0,0,0,0.06)' },
-    formTitulo: { color: '#2e7d52', marginBottom: '20px', marginTop: 0 },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' },
+    // Modal
+    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px 28px 0 28px' },
+    modalIconRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' },
+    modalIconCircle: { width: '42px', height: '42px', borderRadius: '12px', backgroundColor: '#e8f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    modalTitulo: { fontSize: '20px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
+    modalSubtitulo: { fontSize: '13px', color: '#888', margin: '2px 0 0 54px' },
+    botonCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', lineHeight: 1, flexShrink: 0 },
+
+    modalBody: { padding: '20px 28px' },
+    errorModal: { display: 'flex', gap: '8px', alignItems: 'center', color: '#e53935', backgroundColor: '#fdecea', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' },
+
+    modalFooter: { display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '16px 28px 24px 28px', borderTop: '1px solid #f0f0f0' },
+    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1.5px solid #ddd', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' },
+
+    // Form dentro del modal
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '16px' },
     inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
     label: { fontSize: '13px', color: '#555', fontWeight: '600' },
-    select: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', backgroundColor: 'white' },
-    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none' },
-    formBotones: { display: 'flex', gap: '10px' },
-    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' },
+    select: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', backgroundColor: 'white', width: '100%' },
+    input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
+    metodosRow: { display: 'flex', gap: '8px' },
+    metodoBtn: { flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' },
 
-    infoplanBox: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '15px', gridColumn: '1 / -1' },
+    infoplanBox: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '15px', marginBottom: '16px' },
     infoPlanHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' },
     infoPlanTitulo: { fontSize: '13px', fontWeight: '700', color: '#2e7d52', margin: 0 },
     infoPlanGrid: { display: 'grid', gridTemplateColumns: 'auto 1fr auto 1fr', gap: '8px', alignItems: 'center' },
@@ -580,6 +690,11 @@ const styles = {
 
     estadoBadge: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
     estadoBadgeSmall: { padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
+
+    totalBox: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5ee', padding: '16px 20px', borderRadius: '10px', marginBottom: '4px' },
+    totalLabel: { fontSize: '14px', fontWeight: '700', color: '#2e7d52', margin: 0 },
+    totalMetodo: { fontSize: '13px', color: '#888', margin: '4px 0 0 0' },
+    totalValor: { fontSize: '28px', fontWeight: 'bold', color: '#2e7d52' },
 
     lista: { display: 'flex', flexDirection: 'column', gap: '10px' },
     pagoCard: { backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' },

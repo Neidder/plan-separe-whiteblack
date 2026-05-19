@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import { getPlanes, crearPlan, cancelarPlan } from '../api/planesSepare';
 import { getClientes } from '../api/clientes';
@@ -13,16 +13,72 @@ const ESTADOS = {
 
 const itemVacio = () => ({ id_producto: '', talla: '', cantidad: 1, precio_unitario: '' });
 
+/* ─── Modal ─── */
+const Modal = ({ isOpen, onClose, children }) => {
+    const overlayRef = useRef(null);
+
+    useEffect(() => {
+        const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+        if (isOpen) {
+            document.addEventListener('keydown', handleKey);
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.removeEventListener('keydown', handleKey);
+            document.body.style.overflow = '';
+        };
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div
+            ref={overlayRef}
+            onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+            style={modalStyles.overlay}
+        >
+            <div style={modalStyles.container}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const modalStyles = {
+    overlay: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+    },
+    container: {
+        backgroundColor: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.18)',
+        width: '100%',
+        maxWidth: '700px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        animation: 'modalIn 0.2s ease',
+    },
+};
+
 const PlanesSepare = () => {
     const [planes, setPlanes] = useState([]);
     const [clientes, setClientes] = useState([]);
     const [productos, setProductos] = useState([]);
-    const [mostrarForm, setMostrarForm] = useState(false);
+    const [modalAbierto, setModalAbierto] = useState(false);
     const [idCliente, setIdCliente] = useState('');
     const [anticipo, setAnticipo] = useState('');
     const [fechaFin, setFechaFin] = useState('');
     const [items, setItems] = useState([itemVacio()]);
     const [error, setError] = useState('');
+    const [errorModal, setErrorModal] = useState('');
     const [cargando, setCargando] = useState(false);
     const [filtro, setFiltro] = useState('todos');
     const [busqueda, setBusqueda] = useState('');
@@ -48,7 +104,6 @@ const PlanesSepare = () => {
         }
     };
 
-    // Tallas disponibles del producto seleccionado
     const tallasDeProducto = (idProducto) => {
         if (!idProducto) return [];
         const prod = productos.find(p => p.id_producto === parseInt(idProducto));
@@ -58,7 +113,6 @@ const PlanesSepare = () => {
     const handleItemChange = (index, campo, valor) => {
         const nuevos = [...items];
         nuevos[index][campo] = valor;
-        // Si cambia el producto resetear talla y autocompletar precio
         if (campo === 'id_producto') {
             nuevos[index].talla = '';
             const prod = productos.find(p => p.id_producto === parseInt(valor));
@@ -77,22 +131,37 @@ const PlanesSepare = () => {
         s + (parseFloat(i.precio_unitario) || 0) * (parseInt(i.cantidad) || 0), 0
     );
 
+    /* ─── modal handlers ─── */
+    const handleNuevo = () => {
+        setIdCliente('');
+        setAnticipo('');
+        setFechaFin('');
+        setItems([itemVacio()]);
+        setErrorModal('');
+        setModalAbierto(true);
+    };
+
+    const handleCerrarModal = () => {
+        setModalAbierto(false);
+        setErrorModal('');
+    };
+
     const handleGuardar = async () => {
         if (!idCliente || !anticipo || !fechaFin) {
-            setError('Cliente, anticipo y fecha límite son obligatorios');
+            setErrorModal('Cliente, anticipo y fecha límite son obligatorios');
             return;
         }
         const itemsValidos = items.filter(i => i.id_producto && i.talla && i.cantidad > 0 && i.precio_unitario > 0);
         if (itemsValidos.length === 0) {
-            setError('Agrega al menos un producto con talla, cantidad y precio');
+            setErrorModal('Agrega al menos un producto con talla, cantidad y precio');
             return;
         }
         if (parseFloat(anticipo) < 0) {
-            setError('El anticipo no puede ser negativo');
+            setErrorModal('El anticipo no puede ser negativo');
             return;
         }
         if (parseFloat(anticipo) > calcularTotal()) {
-            setError('El anticipo no puede ser mayor al valor total');
+            setErrorModal('El anticipo no puede ser mayor al valor total');
             return;
         }
         try {
@@ -108,13 +177,13 @@ const PlanesSepare = () => {
                     precio_unitario: parseFloat(i.precio_unitario),
                 }))
             });
-            setMostrarForm(false);
+            setModalAbierto(false);
             setIdCliente(''); setAnticipo(''); setFechaFin('');
             setItems([itemVacio()]);
             setError('');
             cargarTodo();
         } catch (err) {
-            setError(err.response?.data?.error || 'Error al crear el plan');
+            setErrorModal(err.response?.data?.error || 'Error al crear el plan');
         }
     };
 
@@ -158,6 +227,13 @@ const PlanesSepare = () => {
 
     return (
         <div style={styles.layout}>
+            <style>{`
+                @keyframes modalIn {
+                    from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
+
             <Sidebar />
             <div style={styles.contenido}>
 
@@ -166,7 +242,7 @@ const PlanesSepare = () => {
                         <h1 style={styles.titulo}>📋 Planes Separe</h1>
                         <p style={styles.subtitulo}>{planes.length} planes registrados</p>
                     </div>
-                    <button onClick={() => { setMostrarForm(true); setError(''); }} style={styles.botonNuevo}>
+                    <button onClick={handleNuevo} style={styles.botonNuevo}>
                         + Nuevo Plan
                     </button>
                 </div>
@@ -212,15 +288,34 @@ const PlanesSepare = () => {
 
                 {error && <p style={styles.error}>{error}</p>}
 
-                {/* Formulario */}
-                {mostrarForm && (
-                    <div style={styles.formulario}>
-                        <h3 style={styles.formTitulo}>➕ Nuevo Plan Separe</h3>
+                {/* ─── MODAL ─── */}
+                <Modal isOpen={modalAbierto} onClose={handleCerrarModal}>
+                    {/* Header */}
+                    <div style={styles.modalHeader}>
+                        <div>
+                            <div style={styles.modalIconRow}>
+                                <div style={styles.modalIconCircle}>
+                                    <span style={{ fontSize: '20px' }}>📋</span>
+                                </div>
+                                <h2 style={styles.modalTitulo}>Nuevo Plan Separe</h2>
+                            </div>
+                            <p style={styles.modalSubtitulo}>Completa los datos del plan</p>
+                        </div>
+                        <button onClick={handleCerrarModal} style={styles.botonCerrar}>✕</button>
+                    </div>
+
+                    {/* Body */}
+                    <div style={styles.modalBody}>
+                        {errorModal && (
+                            <div style={styles.errorModal}>
+                                <span>⚠️</span> {errorModal}
+                            </div>
+                        )}
 
                         {/* Cliente y fecha */}
                         <div style={styles.formGrid}>
                             <div style={styles.inputGroup}>
-                                <label style={styles.label}>Cliente *</label>
+                                <label style={styles.label}>Cliente <span style={styles.requerido}>*</span></label>
                                 <select value={idCliente} onChange={e => setIdCliente(e.target.value)} style={styles.select}>
                                     <option value="">-- Selecciona cliente --</option>
                                     {clientes.map(c => (
@@ -231,7 +326,7 @@ const PlanesSepare = () => {
                                 </select>
                             </div>
                             <div style={styles.inputGroup}>
-                                <label style={styles.label}>Fecha límite de pago *</label>
+                                <label style={styles.label}>Fecha límite de pago <span style={styles.requerido}>*</span></label>
                                 <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={styles.input} />
                             </div>
                         </div>
@@ -243,7 +338,6 @@ const PlanesSepare = () => {
                                 const tallas = tallasDeProducto(item.id_producto);
                                 return (
                                     <div key={i} style={styles.itemRow}>
-                                        {/* Producto */}
                                         <div style={{ flex: 2 }}>
                                             <label style={styles.labelSmall}>Producto</label>
                                             <select
@@ -259,8 +353,6 @@ const PlanesSepare = () => {
                                                 ))}
                                             </select>
                                         </div>
-
-                                        {/* Talla */}
                                         <div style={{ flex: 1 }}>
                                             <label style={styles.labelSmall}>Talla</label>
                                             <select
@@ -277,8 +369,6 @@ const PlanesSepare = () => {
                                                 ))}
                                             </select>
                                         </div>
-
-                                        {/* Cantidad */}
                                         <div style={{ flex: 1 }}>
                                             <label style={styles.labelSmall}>Cantidad</label>
                                             <input
@@ -288,8 +378,6 @@ const PlanesSepare = () => {
                                                 style={styles.input}
                                             />
                                         </div>
-
-                                        {/* Precio */}
                                         <div style={{ flex: 1 }}>
                                             <label style={styles.labelSmall}>Precio</label>
                                             <input
@@ -299,15 +387,12 @@ const PlanesSepare = () => {
                                                 style={styles.input}
                                             />
                                         </div>
-
-                                        {/* Subtotal */}
                                         <div style={{ flex: 1 }}>
                                             <label style={styles.labelSmall}>Subtotal</label>
                                             <div style={styles.subtotalBox}>
                                                 ${((parseFloat(item.precio_unitario) || 0) * (parseInt(item.cantidad) || 0)).toLocaleString()}
                                             </div>
                                         </div>
-
                                         <button onClick={() => quitarItem(i)} style={styles.botonQuitar}>✕</button>
                                     </div>
                                 );
@@ -324,7 +409,7 @@ const PlanesSepare = () => {
                                 <span style={styles.totalValor}>${calcularTotal().toLocaleString()}</span>
                             </div>
                             <div style={styles.anticipoGroup}>
-                                <label style={styles.label}>Anticipo *</label>
+                                <label style={styles.label}>Anticipo <span style={styles.requerido}>*</span></label>
                                 <input
                                     type="number" min="0"
                                     placeholder="Ej: 50000"
@@ -337,13 +422,18 @@ const PlanesSepare = () => {
                                 </p>
                             </div>
                         </div>
-
-                        <div style={styles.formBotones}>
-                            <button onClick={handleGuardar} style={styles.botonGuardar}>💾 Crear Plan</button>
-                            <button onClick={() => { setMostrarForm(false); setItems([itemVacio()]); }} style={styles.botonCancelar}>Cancelar</button>
-                        </div>
                     </div>
-                )}
+
+                    {/* Footer */}
+                    <div style={styles.modalFooter}>
+                        <button onClick={handleCerrarModal} style={styles.botonCancelar}>
+                            Cancelar
+                        </button>
+                        <button onClick={handleGuardar} style={styles.botonGuardar}>
+                            💾 Crear Plan
+                        </button>
+                    </div>
+                </Modal>
 
                 {/* Lista de planes */}
                 {cargando ? (
@@ -420,7 +510,7 @@ const PlanesSepare = () => {
                                         <span style={styles.progressLabel}>{porcentaje.toFixed(0)}% pagado</span>
                                     </div>
 
-                                    {/* Productos del plan expandidos */}
+                                    {/* Productos expandidos */}
                                     {expandido === plan.id_plan_separe && (
                                         <div style={styles.productosExpandidos}>
                                             <p style={styles.productosExpandidosTitulo}>👕 Productos del plan</p>
@@ -483,29 +573,44 @@ const styles = {
     filtrosBotones: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
     filtroBton: { border: '1.5px solid #e0ede6', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' },
     error: { color: '#e53935', backgroundColor: '#fdecea', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' },
-    formulario: { backgroundColor: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 2px 15px rgba(0,0,0,0.06)' },
-    formTitulo: { color: '#2e7d52', marginBottom: '20px', marginTop: 0 },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' },
+
+    // Modal interior
+    modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px 28px 0 28px' },
+    modalIconRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' },
+    modalIconCircle: { width: '42px', height: '42px', borderRadius: '12px', backgroundColor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    modalTitulo: { fontSize: '20px', fontWeight: 'bold', color: '#2d2d2d', margin: 0 },
+    modalSubtitulo: { fontSize: '13px', color: '#888', margin: '2px 0 0 54px' },
+    botonCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', lineHeight: 1, flexShrink: 0 },
+
+    modalBody: { padding: '20px 28px' },
+    errorModal: { display: 'flex', gap: '8px', alignItems: 'center', color: '#e53935', backgroundColor: '#fdecea', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' },
+
+    modalFooter: { display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '16px 28px 24px 28px', borderTop: '1px solid #f0f0f0' },
+    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 22px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1.5px solid #ddd', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' },
+
+    // Form
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '16px' },
     inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
     label: { fontSize: '13px', color: '#555', fontWeight: '600' },
+    requerido: { color: '#e53935' },
     labelSmall: { fontSize: '12px', color: '#777', fontWeight: '600', display: 'block', marginBottom: '4px' },
     select: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', backgroundColor: 'white', width: '100%' },
     input: { padding: '10px 14px', border: '1.5px solid #e0ede6', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' },
-    productosSeccion: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '18px', marginBottom: '20px' },
-    seccionTitulo: { fontSize: '14px', fontWeight: '700', color: '#2e7d52', marginBottom: '15px', marginTop: 0 },
-    itemRow: { display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '12px', backgroundColor: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e0ede6' },
+    productosSeccion: { backgroundColor: '#f8fffe', border: '1.5px solid #e0ede6', borderRadius: '10px', padding: '16px', marginBottom: '16px' },
+    seccionTitulo: { fontSize: '14px', fontWeight: '700', color: '#2e7d52', marginBottom: '12px', marginTop: 0 },
+    itemRow: { display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '10px', backgroundColor: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e0ede6' },
     subtotalBox: { padding: '10px 14px', backgroundColor: '#f0f4f0', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: '#2e7d52' },
     botonQuitar: { backgroundColor: '#fdecea', color: '#e53935', border: 'none', width: '32px', height: '32px', borderRadius: '6px', cursor: 'pointer', flexShrink: 0 },
     botonAgregar: { backgroundColor: 'transparent', color: '#2e7d52', border: '1.5px dashed #2e7d52', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginTop: '4px' },
-    totalSection: { display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '20px' },
+    totalSection: { display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '4px' },
     totalBox: { flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5ee', padding: '15px 20px', borderRadius: '10px' },
     totalLabel: { fontSize: '14px', fontWeight: '700', color: '#2e7d52' },
     totalValor: { fontSize: '22px', fontWeight: 'bold', color: '#2e7d52' },
     anticipoGroup: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
     saldoTexto: { fontSize: '13px', color: '#e65100', margin: '4px 0 0 0' },
-    formBotones: { display: 'flex', gap: '10px' },
-    botonGuardar: { backgroundColor: '#2e7d52', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-    botonCancelar: { backgroundColor: 'white', color: '#666', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' },
+
+    // Lista
     lista: { display: 'flex', flexDirection: 'column', gap: '12px' },
     planCard: { backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden' },
     planFila: { display: 'flex', alignItems: 'center', gap: '20px', padding: '18px 20px' },
