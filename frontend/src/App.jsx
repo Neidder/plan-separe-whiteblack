@@ -9,7 +9,9 @@ import Compras from './pages/Compras';
 import PlanesSepare from './pages/PlanesSepare';
 import Pagos from './pages/Pagos';
 import Ventas from './pages/Ventas';
+import CambiosPage from './pages/Cambios';
 import Usuarios from './pages/Usuarios';
+
 
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -122,6 +124,16 @@ function App() {
                     element={
                         <ProtectedRoute adminOnly={true}>
                             <Compras />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* CAMBIOS */}
+                <Route
+                    path="/Cambios"
+                    element={
+                        <ProtectedRoute>
+                            <CambiosPage />
                         </ProtectedRoute>
                     }
                 />

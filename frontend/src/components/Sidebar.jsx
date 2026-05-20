@@ -50,6 +50,11 @@ const Sidebar = () => {
                     label: 'Ventas'
                 },
                 {
+                    path: '/cambios',
+                    icon: '🔄',
+                    label: 'Cambios'
+                },
+                {
                     path: '/planes-separe',
                     icon: '📋',
                     label: 'Planes Separe'
@@ -85,6 +90,11 @@ const Sidebar = () => {
                     path: '/ventas',
                     icon: '💵',
                     label: 'Ventas'
+                },
+                {
+                    path: '/cambios',
+                    icon: '🔄',
+                    label: 'Cambios'
                 },
                 {
                     path: '/planes-separe',
