@@ -29,4 +29,5 @@ urlpatterns = [
     path('api/planes-separe/', include('planes_separe.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/ventas/', include('ventas.urls')),
+    path('api/cambios/', include('cambios.urls')),
 ]
