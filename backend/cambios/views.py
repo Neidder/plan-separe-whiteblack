@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.exceptions import ValidationError  # <- Corrección para lanzar excepciones de DRF
+from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -15,7 +15,7 @@ from planes_separe.models import PlanesSepare
 
 
 # =========================================================================
-# VISTA NUEVA: Obtiene los productos originales de la Venta o Plan Separe
+# VISTA MODIFICADA: Obtiene productos, valores individuales y totales de origen
 # =========================================================================
 class ObtenerDetallesOrigenView(APIView):
     def get(self, request):
@@ -31,19 +31,20 @@ class ObtenerDetallesOrigenView(APIView):
             if not venta:
                 return Response({"error": "La factura de venta especificada no existe."}, status=status.HTTP_404_NOT_FOUND)
             
-            # Extraer los productos asociados mediante los detalles de la venta
-            # Nota: Asegúrate de que el related_name en tus modelos coincida con '.detalles'
+            # Extraer los productos con sus precios unitarios y subtotales calculados
             detalles = [{
                 "id_producto": d.id_producto.id_producto,
                 "nombre_producto": d.id_producto.nombre,
                 "talla": d.talla,
-                "cantidad_maxima": d.cantidad,  # El tope máximo que puede devolver el cliente
-                "precio_unitario": float(d.precio_unitario)
+                "cantidad_maxima": d.cantidad,  # Límite a devolver
+                "precio_unitario": float(d.precio_unitario),
+                "subtotal": float(d.precio_unitario * d.cantidad)  # <-- MODIFICADO: Agregado subtotal original
             } for d in venta.detalles.all()]
 
             return Response({
                 "id_cliente": venta.id_cliente.id_cliente if venta.id_cliente else None,
                 "nombre_cliente": f"{venta.id_cliente.nombre} {venta.id_cliente.apellido or ''}".strip() if venta.id_cliente else "Cliente ocasional",
+                "total_transaccion": float(venta.total),  # <-- MODIFICADO: Agregado el valor total de la venta
                 "detalles": detalles
             }, status=status.HTTP_200_OK)
 
@@ -58,12 +59,14 @@ class ObtenerDetallesOrigenView(APIView):
                 "nombre_producto": d.id_producto.nombre,
                 "talla": d.talla,
                 "cantidad_maxima": d.cantidad,
-                "precio_unitario": float(d.precio_unitario)
+                "precio_unitario": float(d.precio_unitario),
+                "subtotal": float(d.precio_unitario * d.cantidad)  # <-- MODIFICADO: Agregado subtotal original
             } for d in plan.detalles.all()]
 
             return Response({
-                "id_cliente": plan.id_cliente.id_cliente,
-                "nombre_cliente": f"{plan.id_cliente.nombre} {plan.id_cliente.apellido or ''}".strip(),
+                "id_cliente": plan.id_cliente.id_cliente if plan.id_cliente else None,
+                "nombre_cliente": f"{plan.id_cliente.nombre} {plan.id_cliente.apellido or ''}".strip() if plan.id_cliente else "Cliente ocasional",
+                "total_transaccion": float(plan.valor_total),  # <-- MODIFICADO: Agregado el valor total del Plan Separe
                 "detalles": detalles
             }, status=status.HTTP_200_OK)
 
@@ -99,9 +102,9 @@ class RegistrarCambioView(APIView):
         if not cliente and plan_obj and plan_obj.id_cliente:
             cliente = plan_obj.id_cliente
 
-        # Guardar la cabecera del cambio (puede quedar id_cliente en NULL en la BD si es ocasional)
+        # Guardar la cabecera del cambio
         cambio = Cambios.objects.create(
-            id_cliente=cliente,  # Puede ser None
+            id_cliente=cliente,  
             id_venta=venta_obj,
             id_plan_separe=plan_obj,
             fecha_cambio=timezone.now()
@@ -117,7 +120,6 @@ class RegistrarCambioView(APIView):
                 id_producto=producto, talla=item['talla'], defaults={'cantidad': 0}
             )
             stock_global_anterior = producto.stock
-            prod_talla.checkpoint = True # Bandera de control interna si fuera necesaria
             prod_talla.cantidad += item['cantidad']
             prod_talla.save()
 
@@ -127,6 +129,7 @@ class RegistrarCambioView(APIView):
             subtotal_item = producto.precio_venta * item['cantidad']
             total_devuelto += subtotal_item
 
+            # El precio unitario registrado corresponde al valor actual del producto devuelto
             DetalleCambioEntrada.objects.create(
                 id_cambio=cambio, id_producto=producto,
                 talla=item['talla'], cantidad=item['cantidad'], precio_unitario=producto.precio_venta
@@ -171,17 +174,16 @@ class RegistrarCambioView(APIView):
                 fecha_movimiento=timezone.now(), referencia=f"Cambio ID: {cambio.id_cambio}"
             )
 
-        # === 3. EVALUACIÓN DE SALDOS FINANCIEROS Y VALIDACIÓN DE CLIENTE ===
+        # === 3. EVALUACIÓN DE SALDOS FINANCIEROS (Las 3 Opciones) ===
         diferencia = total_nuevo - total_devuelto
         cambio.total_diferencia = diferencia
         cambio.save()
 
         mensaje = ""
         
-        # CASO A: Queda dinero a favor del comprador
+        # OPCIÓN A: Sobra dinero a favor del cliente
         if diferencia < 0:
             if not cliente:
-                # !!! REGLA DE ORO: Si es un cliente ocasional, impedimos que continúe si sobra dinero !!!
                 raise ValidationError({
                     "error": "No se puede generar saldo a favor para un 'Cliente ocasional'. Por favor, seleccione o registre un cliente real para conservar su saldo."
                 })
@@ -191,7 +193,7 @@ class RegistrarCambioView(APIView):
             cliente.save()
             mensaje = f"Cambio exitoso. Se asignaron ${saldo_generado:,.0f} como saldo a favor de {cliente.nombre}."
 
-        # CASO B: El cliente debe pagar un excedente
+        # OPCIÓN B: El cliente queda debiendo un excedente
         elif diferencia > 0:
             if plan_obj:
                 plan_obj.valor_total += diferencia
@@ -199,10 +201,9 @@ class RegistrarCambioView(APIView):
                 plan_obj.save()
                 mensaje = f"Cambio exitoso. Se sumaron ${diferencia:,.0f} al saldo pendiente del Plan Separe."
             else:
-                # Si fue una venta a cliente ocasional, simplemente se cobra la diferencia en la caja normal
                 mensaje = f"Cambio exitoso. Se generó un excedente de ${diferencia:,.0f}. Cobrar el saldo restante en caja."
         
-        # CASO C: El valor es idéntico
+        # OPCIÓN C: El cambio es neto / idéntico ($0)
         else:
             mensaje = "Cambio realizado de forma directa (Diferencia de $0). No se requieren movimientos de dinero."
 
