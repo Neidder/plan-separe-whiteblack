@@ -452,12 +452,19 @@ const PlanesSepare = () => {
                                 ? ((plan.valor_total - plan.saldo_restante) / plan.valor_total) * 100
                                 : 0;
 
+                            // NUEVO: Verificar se o plan ten algunha devolución nos seus detalles
+                            const tieneDevolucion = plan.detalles?.some(d => (d.cantidad_devuelta || 0) > 0);
+
                             return (
                                 <div key={plan.id_plan_separe} style={styles.planCard}>
                                     <div style={styles.planFila}>
                                         <div style={styles.planInfo}>
                                             <div style={styles.planTop}>
                                                 <span style={styles.planId}>Plan #{plan.id_plan_separe}</span>
+                                                {/* MODIFICADO: Badge de alerta visual de devolución global */}
+                                                {tieneDevolucion && (
+                                                    <span style={styles.badgeVentaDevuelta}>🔄 Con Devolución</span>
+                                                )}
                                                 <span style={{ ...styles.badge, backgroundColor: cfg.bg, color: cfg.color }}>
                                                     {cfg.label}
                                                 </span>
@@ -526,19 +533,52 @@ const PlanesSepare = () => {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {plan.detalles.map(d => (
-                                                            <tr key={d.id_detalle} style={{ borderTop: '1px solid #f0f4f0' }}>
-                                                                <td style={styles.td}>{getNombreProducto(d.id_producto)}</td>
-                                                                <td style={styles.td}>
-                                                                    <span style={styles.tallaPill}>{d.talla}</span>
-                                                                </td>
-                                                                <td style={styles.td}>{d.cantidad} uds</td>
-                                                                <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
-                                                                <td style={{ ...styles.td, fontWeight: 'bold', color: '#2e7d52' }}>
-                                                                    ${Number(d.subtotal).toLocaleString()}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
+                                                        {plan.detalles.map(d => {
+                                                            // NUEVO: Evaluación e indicadores por produto individual
+                                                            const cantDevuelta = d.cantidad_devuelta || 0;
+                                                            const totalmenteDevuelto = cantDevuelta >= d.cantidad;
+
+                                                            return (
+                                                                <tr 
+                                                                    key={d.id_detalle} 
+                                                                    style={{ 
+                                                                        borderTop: '1px solid #f0f4f0',
+                                                                        backgroundColor: totalmenteDevuelto ? '#fff5f5' : 'transparent'
+                                                                    }}
+                                                                >
+                                                                    {/* MODIFICADO: Nome riscado se foi devolto por completo */}
+                                                                    <td style={{ 
+                                                                        ...styles.td,
+                                                                        textDecoration: totalmenteDevuelto ? 'line-through' : 'none',
+                                                                        color: totalmenteDevuelto ? '#999' : '#333'
+                                                                    }}>
+                                                                        {getNombreProducto(d.id_producto)}
+                                                                    </td>
+                                                                    <td style={styles.td}>
+                                                                        <span style={styles.tallaPill}>{d.talla}</span>
+                                                                    </td>
+                                                                    {/* MODIFICADO: Badge de unidades devoltas ao lado da cantidade original */}
+                                                                    <td style={styles.td}>
+                                                                        {d.cantidad} uds
+                                                                        {cantDevuelta > 0 && (
+                                                                            <span style={styles.badgeProductoDevuelto}>
+                                                                                🔄 {cantDevuelta} devuelta{cantDevuelta > 1 ? 's' : ''}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
+                                                                    {/* MODIFICADO: Cambio de cor de subtotal e texto indicativo se está anulado */}
+                                                                    <td style={{ ...styles.td, fontWeight: 'bold', color: totalmenteDevuelto ? '#bc4747' : '#2e7d52' }}>
+                                                                        ${Number(d.subtotal).toLocaleString()}
+                                                                        {cantDevuelta > 0 && (
+                                                                            <div style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>
+                                                                                {totalmenteDevuelto ? '(Anulado)' : '(Monto inicial)'}
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
                                                     </tbody>
                                                 </table>
                                             ) : (
@@ -637,6 +677,10 @@ const styles = {
     td: { padding: '10px 14px', fontSize: '13px', color: '#333' },
     tallaPill: { backgroundColor: '#e8f5ee', color: '#2e7d52', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
     sinDatos: { backgroundColor: 'white', borderRadius: '12px', padding: '50px', textAlign: 'center', color: '#999' },
+
+    // ESTILOS DE DEVOLUCIÓN ENGADIDOS:
+    badgeVentaDevuelta: { backgroundColor: '#fdecea', color: '#e53935', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', marginLeft: '5px', border: '1px solid #fca8a6', display: 'inline-block' },
+    badgeProductoDevuelto: { backgroundColor: '#fff5f5', color: '#e53935', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', marginLeft: '8px', border: '1px solid #fca8a6', display: 'inline-block' }
 };
 
 export default PlanesSepare;

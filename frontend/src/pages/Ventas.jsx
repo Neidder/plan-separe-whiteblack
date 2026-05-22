@@ -482,70 +482,111 @@ const Ventas = () => {
                     </div>
                 ) : (
                     <div style={styles.lista}>
-                        {ventasFiltradas.map(v => (
-                            <div key={v.id_venta} style={styles.ventaCard}>
-                                <div style={styles.ventaFila}>
-                                    <div style={styles.ventaMetodo}>
-                                        <span style={{ fontSize: '24px' }}>{METODO_ICONS[v.metodo_pago] || '💵'}</span>
-                                        <span style={styles.ventaMetodoLabel}>{v.metodo_pago}</span>
-                                    </div>
-                                    <div style={styles.ventaInfo}>
-                                        <p style={styles.ventaId}>Venta #{v.id_venta}</p>
-                                        <p style={styles.ventaCliente}>👤 {getNombreCliente(v.id_cliente)}</p>
-                                        <p style={styles.ventaFecha}>
-                                            📅 {v.fecha_venta
-                                                ? new Date(v.fecha_venta).toLocaleDateString('es-CO', {
-                                                    day: '2-digit', month: 'short',
-                                                    hour: '2-digit', minute: '2-digit'
-                                                }) : '—'}
-                                        </p>
-                                    </div>
-                                    <div style={styles.ventaTotal}>
-                                        ${Number(v.total).toLocaleString()}
-                                    </div>
-                                    <button
-                                        onClick={() => setExpandido(expandido === v.id_venta ? null : v.id_venta)}
-                                        style={styles.botonVer}
-                                    >
-                                        {expandido === v.id_venta ? '▲ Ocultar' : '▼ Detalle'}
-                                    </button>
-                                </div>
+                        {ventasFiltradas.map(v => {
+                            // NUEVO: Verificar si la venta tiene algún artículo devuelto en su historial
+                            const tieneDevolucion = v.detalles?.some(d => (d.cantidad_devuelta || 0) > 0);
 
-                                {expandido === v.id_venta && v.detalles && (
-                                    <div style={styles.detallesContainer}>
-                                        <table style={styles.tabla}>
-                                            <thead>
-                                                <tr style={{ backgroundColor: '#f0f4f0' }}>
-                                                    <th style={styles.th}>Producto</th>
-                                                    <th style={styles.th}>Talla</th>
-                                                    <th style={styles.th}>Cantidad</th>
-                                                    <th style={styles.th}>Precio unit.</th>
-                                                    <th style={styles.th}>Subtotal</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {v.detalles.map(d => {
-                                                    const prod = productos.find(p => p.id_producto === d.id_producto);
-                                                    return (
-                                                        <tr key={d.id_detalle} style={{ borderTop: '1px solid #f0f4f0' }}>
-                                                            <td style={styles.td}>{prod?.nombre || `Producto #${d.id_producto}`}</td>
-                                                            <td style={styles.td}>
-                                                                <span style={styles.tallaPill}>{d.talla}</span>
-                                                            </td>
-                                                            <td style={styles.td}>{d.cantidad} uds</td>
-                                                            <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
-                                                            <td style={{ ...styles.td, color: '#2e7d52', fontWeight: 'bold' }}>
-                                                                ${Number(d.subtotal).toLocaleString()}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                            return (
+                                <div key={v.id_venta} style={styles.ventaCard}>
+                                    <div style={styles.ventaFila}>
+                                        <div style={styles.ventaMetodo}>
+                                            <span style={{ fontSize: '24px' }}>{METODO_ICONS[v.metodo_pago] || '💵'}</span>
+                                            <span style={styles.ventaMetodoLabel}>{v.metodo_pago}</span>
+                                        </div>
+                                        <div style={styles.ventaInfo}>
+                                            {/* SE MODIFICÓ AQUÍ: Alerta visual al lado del número de venta */}
+                                            <p style={styles.ventaId}>
+                                                Venta #{v.id_venta}
+                                                {tieneDevolucion && (
+                                                    <span style={styles.badgeVentaDevuelta}>🔄 Con Devolución</span>
+                                                )}
+                                            </p>
+                                            <p style={styles.ventaCliente}>👤 {getNombreCliente(v.id_cliente)}</p>
+                                            <p style={styles.ventaFecha}>
+                                                📅 {v.fecha_venta
+                                                    ? new Date(v.fecha_venta).toLocaleDateString('es-CO', {
+                                                        day: '2-digit', month: 'short',
+                                                        hour: '2-digit', minute: '2-digit'
+                                                    }) : '—'}
+                                            </p>
+                                        </div>
+                                        <div style={styles.ventaTotal}>
+                                            ${Number(v.total).toLocaleString()}
+                                        </div>
+                                        <button
+                                            onClick={() => setExpandido(expandido === v.id_venta ? null : v.id_venta)}
+                                            style={styles.botonVer}
+                                        >
+                                            {expandido === v.id_venta ? '▲ Ocultar' : '▼ Detalle'}
+                                        </button>
                                     </div>
-                                )}
-                            </div>
-                        ))}
+
+                                    {expandido === v.id_venta && v.detalles && (
+                                        <div style={styles.detallesContainer}>
+                                            <table style={styles.tabla}>
+                                                <thead>
+                                                    <tr style={{ backgroundColor: '#f0f4f0' }}>
+                                                        <th style={styles.th}>Producto</th>
+                                                        <th style={styles.th}>Talla</th>
+                                                        <th style={styles.th}>Cantidad original</th>
+                                                        <th style={styles.th}>Precio unit.</th>
+                                                        <th style={styles.th}>Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {v.detalles.map(d => {
+                                                        const prod = productos.find(p => p.id_producto === d.id_producto);
+                                                        
+                                                        // NUEVO: Evaluación de devoluciones por fila de artículo
+                                                        const cantDevuelta = d.cantidad_devuelta || 0;
+                                                        const totalmenteDevuelto = cantDevuelta >= d.cantidad;
+
+                                                        return (
+                                                            <tr 
+                                                                key={d.id_detalle} 
+                                                                style={{ 
+                                                                    borderTop: '1px solid #f0f4f0',
+                                                                    backgroundColor: totalmenteDevuelto ? '#fff5f5' : 'transparent' 
+                                                                }}
+                                                            >
+                                                                <td style={{ 
+                                                                    ...styles.td, 
+                                                                    textDecoration: totalmenteDevuelto ? 'line-through' : 'none',
+                                                                    color: totalmenteDevuelto ? '#999' : '#333'
+                                                                }}>
+                                                                    {prod?.nombre || `Producto #${d.id_producto}`}
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    <span style={styles.tallaPill}>{d.talla}</span>
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    {d.cantidad} uds
+                                                                    {/* SE MODIFICÓ AQUÍ: Alerta por cada producto devuelto */}
+                                                                    {cantDevuelta > 0 && (
+                                                                        <span style={styles.badgeProductoDevuelto}>
+                                                                            🔄 {cantDevuelta} devuelta{cantDevuelta > 1 ? 's' : ''}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td style={styles.td}>${Number(d.precio_unitario).toLocaleString()}</td>
+                                                                <td style={{ ...styles.td, color: totalmenteDevuelto ? '#bc4747' : '#2e7d52', fontWeight: 'bold' }}>
+                                                                    ${Number(d.subtotal).toLocaleString()}
+                                                                    {cantDevuelta > 0 && (
+                                                                        <div style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>
+                                                                            {totalmenteDevuelto ? '(Anulado)' : '(Monto inicial)'}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -636,6 +677,10 @@ const styles = {
     td: { padding: '10px 14px', fontSize: '13px', color: '#333' },
     tallaPill: { backgroundColor: '#e8f5ee', color: '#2e7d52', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
     sinDatos: { backgroundColor: 'white', borderRadius: '12px', padding: '50px', textAlign: 'center', color: '#999' },
+    
+    // NUEVOS ESTILOS AGREGADOS:
+    badgeVentaDevuelta: { backgroundColor: '#fdecea', color: '#e53935', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', marginLeft: '10px', border: '1px solid #fca8a6', display: 'inline-block' },
+    badgeProductoDevuelto: { backgroundColor: '#fff5f5', color: '#e53935', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', marginLeft: '8px', border: '1px solid #fca8a6', display: 'inline-block' }
 };
 
 export default Ventas;
