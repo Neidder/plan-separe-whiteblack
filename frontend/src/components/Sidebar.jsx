@@ -65,6 +65,11 @@ const Sidebar = () => {
                     label: 'Pagos'
                 },
                 {
+                    path: '/reportes',
+                    icon: '📊',
+                    label: 'Reportes'
+                },
+                {
                     path: '/usuarios',
                     icon: '👨‍💼',
                     label: 'Usuarios'
@@ -105,6 +110,11 @@ const Sidebar = () => {
                     path: '/pagos',
                     icon: '💰',
                     label: 'Pagos'
+                },
+                {
+                    path: '/reportes',
+                    icon: '📊',
+                    label: 'Reportes'
                 }
             ]
             : []

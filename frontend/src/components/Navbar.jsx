@@ -22,6 +22,7 @@ const Navbar = () => {
                 <Link to="/pagos" style={styles.link}>Pagos</Link>
                 <Link to="/ventas" style={styles.link}>Ventas</Link>
                 <Link to="/Cambios" style={styles.link}>Cambios</Link>
+                <Link to="/reportes" style={styles.link}>Reportes</Link>
                 <Link to="/usuarios" style={styles.link}>Usuarios</Link>
             </div>
             <div style={styles.user}>

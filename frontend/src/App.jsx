@@ -10,6 +10,7 @@ import PlanesSepare from './pages/PlanesSepare';
 import Pagos from './pages/Pagos';
 import Ventas from './pages/Ventas';
 import CambiosPage from './pages/Cambios';
+import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
 
 
@@ -80,6 +81,15 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <PlanesSepare />
+                        </ProtectedRoute>
+                    }
+                />
+                {/* REPORTES */}
+                <Route
+                    path="/reportes"
+                    element={
+                        <ProtectedRoute>
+                            <Reportes />
                         </ProtectedRoute>
                     }
                 />
