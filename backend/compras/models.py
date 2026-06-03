@@ -27,3 +27,4 @@ class DetalleCompra(models.Model):
     class Meta:
         managed = False
         db_table = 'detalle_compra'
+

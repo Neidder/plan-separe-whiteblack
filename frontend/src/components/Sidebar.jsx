@@ -69,6 +69,12 @@ const Sidebar = () => {
                     icon: '📊',
                     label: 'Reportes'
                 },
+                // NUEVO MÓDULO INDEPENDIENTE DE REPORTES DE COMPRAS
+                {
+                    path: '/reporte-compras-lista', 
+                    icon: '🧾',
+                    label: 'Reporte Compras'
+                },
                 {
                     path: '/usuarios',
                     icon: '👨‍💼',
@@ -159,7 +165,8 @@ const Sidebar = () => {
                         to={item.path}
                         style={{
                             ...styles.menuItem,
-                            ...(location.pathname === item.path
+                            // Manejo de estado activo dinámico (se activa si coincide el path exacto o si es una sub-ruta del reporte de compra)
+                            ...(location.pathname === item.path || (item.path === '/reporte-compras-lista' && location.pathname.startsWith('/reporte-compra/'))
                                 ? styles.menuItemActivo
                                 : {}
                             )

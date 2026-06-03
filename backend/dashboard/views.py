@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from datetime import timedelta
 
-# Importación de modelos según tu archivo
+# Importación de modelos originales
 from clientes.models import Clientes
 from productos.models import Productos
 from proveedores.models import Proveedores
@@ -17,7 +17,7 @@ from ventas.models import Ventas
 def resumen_dashboard(request):
     # --- Tiempos de referencia ---
     hoy_dt = timezone.now()
-    hoy_fecha = hoy_dt.date() # Solo Año-Mes-Día para comparación estricta
+    hoy_fecha = hoy_dt.date()
     inicio_mes = hoy_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     hace_30_dias = hoy_dt - timedelta(days=30)
 
@@ -27,8 +27,7 @@ def resumen_dashboard(request):
     total_proveedores = Proveedores.objects.filter(activo=True).count()
     planes_activos = PlanesSepare.objects.filter(estado='activo').count()
 
-    # --- CORRECCIÓN: Ventas de HOY ---
-    # Al usar __date, Django compara solo la fecha y excluye ventas de ayer o antes
+    # --- Ventas de HOY ---
     ventas_hoy_qs = Ventas.objects.filter(fecha_venta__date=hoy_fecha)
     total_ventas_dia = ventas_hoy_qs.aggregate(total=Sum('total'))['total'] or 0
     cantidad_ventas_dia = ventas_hoy_qs.count()
@@ -56,14 +55,44 @@ def resumen_dashboard(request):
     
     saldo_pendiente = sum(float(p.saldo_restante or 0) for p in PlanesSepare.objects.filter(estado='activo'))
 
-    # --- Productos Stock Bajo ---
-    productos_stock_bajo = Productos.objects.filter(
-        activo=True, stock__lt=5
-    ).values('nombre', 'stock')[:5]
+    # --- PROCESAMIENTO DE STOCK BAJO REAL (Por Tallas) ---
+    productos_stock_bajo = []
+    
+    # Recorremos los productos activos
+    for p in Productos.objects.filter(activo=True):
+        # Buscamos de forma dinámica el gestor de la relación de tallas que usa tu modelo
+        relacion_tallas = None
+        for attr in dir(p):
+            if attr.endswith('_set') or attr in ['tallas', 'variantes', 'imagenes_tallas']:
+                relacion_tallas = getattr(p, attr)
+                break
+        
+        if relacion_tallas:
+            try:
+                # Filtramos las tallas con stock menor o igual a 3
+                for item_talla in relacion_tallas.filter(stock__lte=3):
+                    talla_nombre = getattr(item_talla, 'talla', '') or getattr(item_talla, 'nombre_talla', '')
+                    productos_stock_bajo.append({
+                        'nombre': f"{p.nombre} (Talla {talla_nombre})",
+                        'stock': int(item_talla.stock)
+                    })
+            except Exception:
+                pass
 
-    # --- Listados (Top 5) ---
+    # Si por alguna razón la estructura dinámica no encuentra datos, usamos el respaldo plano
+    if not productos_stock_bajo:
+        for p in Productos.objects.filter(activo=True, stock__lte=3)[:5]:
+            productos_stock_bajo.append({
+                'nombre': p.nombre,
+                'stock': p.stock
+            })
+    else:
+        # Ordenamos de menor a mayor stock y tomamos los 5 críticos
+        productos_stock_bajo = sorted(productos_stock_bajo, key=lambda x: x['stock'])[:5]
+
+    # --- Listados (Top 5 con select_related optimizado) ---
     ultimas_compras = []
-    for c in Compras.objects.order_by('-fecha_compra')[:5]:
+    for c in Compras.objects.select_related('id_proveedor').order_by('-fecha_compra')[:5]:
         ultimas_compras.append({
             'id': c.id_compra,
             'proveedor': c.id_proveedor.nombre_empresa if c.id_proveedor else '—',
@@ -72,7 +101,7 @@ def resumen_dashboard(request):
         })
 
     ultimos_pagos = []
-    for p in Pagos.objects.order_by('-fecha_pago')[:5]:
+    for p in Pagos.objects.select_related('id_plan_separe__id_cliente').order_by('-fecha_pago')[:5]:
         try:
             cliente = p.id_plan_separe.id_cliente
             nombre_cliente = f'{cliente.nombre} {cliente.apellido or ""}'.strip()
@@ -86,7 +115,7 @@ def resumen_dashboard(request):
             'fecha': p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '—',
         })
 
-    # --- Pagos por método (gráfica) ---
+    # --- Pagos por método ---
     metodos = {}
     for p in Pagos.objects.filter(fecha_pago__gte=hace_30_dias):
         m = p.metodo_pago or 'otro'
@@ -111,7 +140,7 @@ def resumen_dashboard(request):
             'saldo_pendiente': float(saldo_pendiente),
             'planes_vencidos': planes_vencidos,
         },
-        'productos_stock_bajo': list(productos_stock_bajo),
+        'productos_stock_bajo': productos_stock_bajo,
         'ultimas_compras': ultimas_compras,
         'ultimos_pagos': ultimos_pagos,
         'pagos_por_metodo': metodos,

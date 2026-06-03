@@ -13,6 +13,8 @@ import CambiosPage from './pages/Cambios';
 import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
 
+// IMPORTACIÓN DEL NUEVO MÓDULO INDEPENDIENTE DE REPORTE DE COMPRAS
+import ReporteCompraDetalle from './pages/ReporteCompraDetalle';
 
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -84,7 +86,7 @@ function App() {
                         </ProtectedRoute>
                     }
                 />
-                {/* REPORTES */}
+                {/* REPORTES GENERALES */}
                 <Route
                     path="/reportes"
                     element={
@@ -134,6 +136,27 @@ function App() {
                     element={
                         <ProtectedRoute adminOnly={true}>
                             <Compras />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* REPORTE DE COMPRAS INDEPENDIENTE (UNIFICADO) */}
+                {/* 1. Ruta para cuando haces clic en el Menú Lateral (Carga la Lista) */}
+                <Route
+                    path="/reporte-compras-lista"
+                    element={
+                        <ProtectedRoute adminOnly={true}>
+                            <ReporteCompraDetalle />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* 2. Ruta para cuando ves una factura específica con su ID */}
+                <Route
+                    path="/reporte-compra/:id_compra"
+                    element={
+                        <ProtectedRoute adminOnly={true}>
+                            <ReporteCompraDetalle />
                         </ProtectedRoute>
                     }
                 />
