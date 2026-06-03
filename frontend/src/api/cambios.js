@@ -1,13 +1,12 @@
-import axios from 'axios'; // O la instancia personalizada de axios que uses en tu proyecto
-
-const API_URL = 'http://localhost:8000/api/cambios/'; // Ajusta el puerto según tu entorno
-
+import api from './axios';
+ 
 export const registrarCambio = async (datosCambio) => {
-    try {
-        const response = await axios.post(`${API_URL}registrar/`, datosCambio);
-        return response.data;
-    } catch (error) {
-        // Lanza el error capturado en el backend para manejarlo en la interfaz
-        throw error.response ? error.response.data : new Error("Error de conexión");
-    }
+    const response = await api.post('/cambios/registrar/', datosCambio);
+    return response.data;
 };
+ 
+export const getCambios = async () => {
+    const response = await api.get('/cambios/listar/');
+    return response.data;
+};
+ 
